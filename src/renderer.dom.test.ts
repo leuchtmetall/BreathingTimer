@@ -6,9 +6,12 @@ import { BreathingEngine, type Clock } from './engine';
 import {
   applyTempo,
   preset467,
+  presetBox4,
   presetBox7,
   presetChoices,
   tempoChoices,
+  tempoFast,
+  tempoNormal,
   tempoSlow,
   type Preset,
 } from './presets';
@@ -35,6 +38,7 @@ function targets(): RenderTargets {
     ring: document.querySelector<SVGCircleElement>('#ring')!,
     track: document.querySelector<SVGCircleElement>('.ring-track')!,
     ringBackdrop: document.querySelector<SVGCircleElement>('#ring-backdrop')!,
+    ticks: document.querySelector<SVGGElement>('#ticks')!,
     dot: document.querySelector<SVGCircleElement>('#dot')!,
     phaseLabel: document.querySelector<HTMLElement>('#phase-label')!,
     countdown: document.querySelector<HTMLElement>('#countdown')!,
@@ -399,6 +403,8 @@ function boxPreset(): Preset {
       { kind: 'exhale', seconds: 4, fill: [1, 0] },
       { kind: 'hold', seconds: 4, fill: [0, 0] },
     ],
+    countSeconds: 1,
+    ticks: true,
   };
 }
 
@@ -410,8 +416,153 @@ function longHoldPreset(): Preset {
       { kind: 'hold', seconds: 15, fill: [1, 1] },
       { kind: 'exhale', seconds: 8, fill: [1, 0] },
     ],
+    countSeconds: 1,
+    ticks: true,
   };
 }
+
+describe('Tick marks and flash (DOM)', () => {
+  const tickLines = () => Array.from(document.querySelectorAll<SVGLineElement>('#ticks line'));
+  const flashing = () => {
+    const ring = document.querySelector('#ring')!;
+    return ring.classList.contains('flash-a') || ring.classList.contains('flash-b');
+  };
+  /** Distance of a tick's midpoint from the centre, on the view scale. */
+  const tickRadius = (line: SVGLineElement) => {
+    const x = (Number(line.getAttribute('x1')) + Number(line.getAttribute('x2'))) / 2 - 58;
+    const y = (Number(line.getAttribute('y1')) + Number(line.getAttribute('y2'))) / 2 - 58;
+    return Math.hypot(x, y);
+  };
+  const setup = (preset: Preset) => {
+    const renderer = new Renderer(targets());
+    renderer.usePreset(preset);
+    const engine = new BreathingEngine(preset, new FakeClock());
+    return { renderer, run: (ms: number) => renderer.renderRunning(engine.signalAt(ms)) };
+  };
+
+  it('draws one tick per count of the current phase, from 12 o\'clock', () => {
+    const { renderer, run } = setup(applyTempo(preset467, tempoNormal));
+    run(500);
+    expect(tickLines()).toHaveLength(4);
+    run(5_000);
+    expect(tickLines()).toHaveLength(6);
+    run(12_000);
+    expect(tickLines()).toHaveLength(7);
+    const first = tickLines()[0]!;
+    expect(Number(first.getAttribute('x1'))).toBeCloseTo(58, 1);
+    expect(Number(first.getAttribute('y1'))).toBeLessThan(58);
+    renderer.renderIdle();
+  });
+
+  it('follows counts at every tempo', () => {
+    for (const tempo of [tempoSlow, tempoFast]) {
+      const preset = applyTempo(presetBox4, tempo);
+      const { renderer, run } = setup(preset);
+      for (let phase = 0; phase < 4; phase++) {
+        run((phase + 0.5) * 4 * preset.countSeconds * 1000);
+        expect(tickLines()).toHaveLength(4);
+      }
+      renderer.renderIdle();
+    }
+  });
+
+  it('tints the ticks in the current ring color', () => {
+    const { renderer, run } = setup(applyTempo(preset467, tempoNormal));
+    const tint = () => document.querySelector<SVGGElement>('#ticks')!.style.getPropertyValue('--tick-phase');
+    for (const ms of [500, 5_000, 12_000]) {
+      run(ms);
+      expect(tint()).toBe(ringStroke());
+    }
+    expect(new Set([500, 5_000, 12_000].map((ms) => (run(ms), tint()))).size).toBe(3);
+    renderer.renderIdle();
+  });
+
+  it('keeps the ticks on the breathing radius', () => {
+    const { renderer, run } = setup(applyTempo(preset467, tempoNormal));
+    for (const ms of [200, 2_000, 3_900, 7_000]) {
+      run(ms);
+      for (const line of tickLines()) expect(tickRadius(line)).toBeCloseTo(ringRadius(), 1);
+    }
+    renderer.renderIdle();
+  });
+
+  it('shows no ticks while idle or for a preset without ticks', () => {
+    const { renderer, run } = setup({ ...preset467, ticks: false });
+    run(500);
+    expect(tickLines()).toHaveLength(0);
+    run(1_500);
+    expect(flashing()).toBe(false);
+    renderer.usePreset(preset467);
+    run(5_500);
+    expect(tickLines()).toHaveLength(6);
+    renderer.renderIdle();
+    expect(tickLines()).toHaveLength(0);
+  });
+
+  it('flashes on an in-phase tick but not at a phase start', () => {
+    const { renderer, run } = setup(applyTempo(preset467, tempoNormal));
+    run(0);
+    expect(flashing()).toBe(false); // session start
+    run(900);
+    expect(flashing()).toBe(false);
+    run(1_010);
+    expect(flashing()).toBe(true); // tick 1 of the inhale
+    renderer.renderIdle();
+
+    // A phase start alone never flashes.
+    const fresh = setup(applyTempo(preset467, tempoNormal));
+    fresh.run(3_990);
+    fresh.run(4_010);
+    expect(flashing()).toBe(false);
+    fresh.renderer.renderIdle();
+  });
+
+  it('restarts the flash on every tick by switching classes', () => {
+    const { renderer, run } = setup(applyTempo(preset467, tempoNormal));
+    const ring = document.querySelector('#ring')!;
+    run(500);
+    run(1_010);
+    const first = ring.classList.contains('flash-a') ? 'flash-a' : 'flash-b';
+    run(2_010);
+    expect(ring.classList.contains(first)).toBe(false);
+    expect(flashing()).toBe(true);
+    renderer.renderIdle();
+  });
+
+  it('flashes at most once after skipped frames', () => {
+    const { renderer, run } = setup(applyTempo(preset467, tempoNormal));
+    const ring = document.querySelector('#ring')!;
+    const spy = vi.spyOn(ring.classList, 'toggle');
+    run(4_100);
+    run(8_500); // three ticks of the hold passed at once
+    expect(spy.mock.calls.filter(([, force]) => force === true)).toHaveLength(1);
+    spy.mockRestore();
+    renderer.renderIdle();
+  });
+
+  it('does not flash while paused or again after resuming', () => {
+    const preset = applyTempo(preset467, tempoNormal);
+    const renderer = new Renderer(targets());
+    renderer.usePreset(preset);
+    const engine = new BreathingEngine(preset, new FakeClock());
+    renderer.renderRunning(engine.signalAt(900));
+    renderer.renderRunning(engine.signalAt(1_010));
+    expect(flashing()).toBe(true);
+    renderer.renderPaused(engine.signalAt(1_020));
+    expect(flashing()).toBe(false);
+    renderer.renderRunning(engine.signalAt(1_030)); // resumed, same tick
+    expect(flashing()).toBe(false);
+    renderer.renderRunning(engine.signalAt(2_010));
+    expect(flashing()).toBe(true);
+
+    // Reset clears the stored tick: a new session's first frame never flashes.
+    renderer.renderIdle();
+    expect(flashing()).toBe(false);
+    renderer.renderRunning(engine.signalAt(2_500));
+    expect(flashing()).toBe(false);
+    renderer.renderIdle();
+  });
+});
 
 describe('Control wiring', () => {
   it('carries session state as a data attribute for the visibility CSS', async () => {
@@ -593,6 +744,132 @@ describe('Control wiring', () => {
     click('reset');
     delete root.dataset.theme;
     now.mockRestore();
+  });
+});
+
+describe('Sound switch wiring', () => {
+  /** Minimal Web Audio stand-in recording each oscillator's start and stops. */
+  class FakeAudioContext {
+    static instances: FakeAudioContext[] = [];
+    currentTime = 0;
+    state = 'running';
+    destination = {};
+    oscillators: { startAt: number; stops: number[] }[] = [];
+    constructor() {
+      FakeAudioContext.instances.push(this);
+    }
+    createOscillator() {
+      const osc = {
+        type: 'sine',
+        frequency: { value: 0 },
+        onended: null,
+        startAt: NaN,
+        stops: [] as number[],
+        connect() {},
+        disconnect() {},
+        start(when: number) {
+          osc.startAt = when;
+        },
+        stop(when: number) {
+          osc.stops.push(when);
+        },
+      };
+      this.oscillators.push(osc);
+      return osc;
+    }
+    createGain() {
+      const param = {
+        setValueAtTime() {},
+        linearRampToValueAtTime() {},
+        exponentialRampToValueAtTime() {},
+      };
+      return { gain: param, connect() {}, disconnect() {} };
+    }
+    resume() {
+      return Promise.resolve();
+    }
+  }
+  const cancelled = (o: { stops: number[] }) => o.stops.includes(0);
+
+  it('offers an accessible sound switch, on by default, outside the session controls', async () => {
+    viStubRaf();
+    await import('./main');
+    const toggle = document.querySelector<HTMLButtonElement>('#sound-toggle')!;
+    expect(toggle.tagName).toBe('BUTTON');
+    expect(toggle.type).toBe('button');
+    expect(toggle.closest('.controls')).toBeNull();
+    expect(toggle.closest('.display')).not.toBeNull();
+    expect(toggle.getAttribute('aria-label')).toBe('Sound');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(toggle.disabled).toBe(false);
+    toggle.focus();
+    expect(document.activeElement).toBe(toggle);
+  });
+
+  it('plays from Start by default; toggles mid-session without disturbing it', async () => {
+    viStubRaf();
+    vi.stubGlobal('AudioContext', FakeAudioContext);
+    await import('./main');
+    const click = (id: string) => (document.querySelector(`#${id}`) as HTMLButtonElement).click();
+    const label = () => (document.querySelector('#phase-label') as HTMLElement).textContent;
+    const stats = () => document.querySelector('#session-stats')!.textContent;
+    const toggle = document.querySelector<HTMLButtonElement>('#sound-toggle')!;
+    const preset = document.querySelector<HTMLSelectElement>('#preset-select')!;
+    const tempo = document.querySelector<HTMLSelectElement>('#tempo-select')!;
+    preset.value = '467';
+    preset.dispatchEvent(new Event('change', { bubbles: true }));
+    tempo.value = 'normal';
+    tempo.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+
+    const now = vi.spyOn(performance, 'now').mockReturnValue(0);
+    click('start'); // the user action that unlocks audio
+    const ctx = FakeAudioContext.instances.at(-1)!;
+    const first = [...ctx.oscillators];
+    expect(first[0]!.startAt).toBeCloseTo(ctx.currentTime, 6); // inhale tone at start
+
+    now.mockReturnValue(5_500); // 1.5 s into the hold
+    click('pause');
+    const before = [label(), stats()];
+    expect(first.every(cancelled)).toBe(true);
+
+    click('resume');
+    const second = ctx.oscillators.slice(first.length);
+    // Next cue is the hold tick at 6 s: 0.5 s after the current position.
+    expect(second[0]!.startAt).toBeCloseTo(ctx.currentTime + 0.5, 6);
+
+    toggle.click(); // off, while running
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(second.every(cancelled)).toBe(true);
+    click('pause');
+    expect([label(), stats()]).toEqual(before);
+    click('resume');
+    expect(ctx.oscillators).toHaveLength(first.length + second.length); // silent
+
+    toggle.click(); // on again, while running
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    const third = ctx.oscillators.slice(first.length + second.length);
+    expect(third.length).toBeGreaterThan(0);
+    expect(document.querySelector('#app')!.getAttribute('data-session-state')).toBe('running');
+    click('reset');
+    expect(third.every(cancelled)).toBe(true);
+
+    now.mockRestore();
+    vi.unstubAllGlobals();
+  });
+
+  it('turns sound on again after a reload', async () => {
+    viStubRaf();
+    await import('./main');
+    (document.querySelector('#sound-toggle') as HTMLButtonElement).click();
+    expect(document.querySelector('#sound-toggle')!.getAttribute('aria-pressed')).toBe('false');
+
+    // Reload: fresh markup and a fresh run of the app module.
+    vi.resetModules();
+    const html = readFileSync(join(appRoot, 'index.html'), 'utf8');
+    document.body.innerHTML = html.slice(html.indexOf('<body>') + 6, html.indexOf('</body>'));
+    await import('./main');
+    expect(document.querySelector('#sound-toggle')!.getAttribute('aria-pressed')).toBe('true');
   });
 });
 

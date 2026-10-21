@@ -12,6 +12,7 @@
         <svg viewBox="0 0 116 116" role="img" aria-label="Breathing indicator">
           <circle id="ring-backdrop" class="ring-backdrop" cx="58" cy="58" r="40" />
           <circle class="ring-track" cx="58" cy="58" r="40" />
+          <g id="ticks" class="ticks"></g>
           <circle id="ring" cx="58" cy="58" r="40" />
           <circle id="dot" cx="58" cy="10" r="3.5" />
         </svg>
@@ -20,18 +21,33 @@
           <p id="countdown" aria-hidden="true"></p>
           <p id="session-stats"></p>
         </div>
-        <button
-          id="theme-toggle"
-          class="theme-toggle"
-          type="button"
-          aria-label="Night mode"
-          aria-pressed="false"
-          title="Night mode"
-        >
-          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
-            <path d="M20.5 14.6A8.5 8.5 0 1 1 9.4 3.5a7 7 0 0 0 11.1 11.1z" />
-          </svg>
-        </button>
+        <div class="display-toggles">
+          <button
+            id="sound-toggle"
+            class="icon-toggle"
+            type="button"
+            aria-label="Sound"
+            aria-pressed="true"
+            title="Sound"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M4 9h4l5-4v14l-5-4H4z" />
+              <path class="sound-waves" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" />
+            </svg>
+          </button>
+          <button
+            id="theme-toggle"
+            class="icon-toggle"
+            type="button"
+            aria-label="Night mode"
+            aria-pressed="false"
+            title="Night mode"
+          >
+            <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+              <path d="M20.5 14.6A8.5 8.5 0 1 1 9.4 3.5a7 7 0 0 0 11.1 11.1z" />
+            </svg>
+          </button>
+        </div>
       </section>
 
       <div class="controls" role="group" aria-label="Session controls">

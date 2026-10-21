@@ -21,6 +21,10 @@ export interface Phase {
 export interface Preset {
   name: string;
   phases: readonly Phase[];
+  /** Real length of one count in seconds; 1 in the catalog, set by `applyTempo`. */
+  countSeconds: number;
+  /** Whether the preset shows tick marks, flashes, and plays in-phase ticks. */
+  ticks: boolean;
 }
 
 /** 4-6-7 breathing: inhale 4 counts, hold with full lungs 6, exhale 7. */
@@ -31,6 +35,8 @@ export const preset467: Preset = {
     { kind: 'hold', seconds: 6, fill: [1, 1] },
     { kind: 'exhale', seconds: 7, fill: [1, 0] },
   ],
+  countSeconds: 1,
+  ticks: true,
 };
 
 function boxPreset(counts: number): Preset {
@@ -42,6 +48,8 @@ function boxPreset(counts: number): Preset {
       { kind: 'exhale', seconds: counts, fill: [1, 0] },
       { kind: 'hold', seconds: counts, fill: [0, 0] },
     ],
+    countSeconds: 1,
+    ticks: true,
   };
 }
 
@@ -85,10 +93,11 @@ export const defaultTempo = tempoNormal;
 /** Resolves a counts-authored preset into real seconds at the given tempo. */
 export function applyTempo(preset: Preset, tempo: Tempo): Preset {
   return {
-    name: preset.name,
+    ...preset,
     phases: preset.phases.map((phase) => ({
       ...phase,
       seconds: phase.seconds * tempo.secondLength,
     })),
+    countSeconds: preset.countSeconds * tempo.secondLength,
   };
 }

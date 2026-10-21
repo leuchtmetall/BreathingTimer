@@ -34,6 +34,8 @@ function boxPreset(): Preset {
       { kind: 'exhale', seconds: 4, fill: [1, 0] },
       { kind: 'hold', seconds: 4, fill: [0, 0] },
     ],
+    countSeconds: 1,
+    ticks: true,
   };
 }
 
@@ -340,6 +342,18 @@ describe('Tempo', () => {
     }
   });
 
+  it('records the count length and keeps the ticks flag', () => {
+    for (const { preset } of presetChoices) {
+      expect(preset.countSeconds).toBe(1);
+      expect(preset.ticks).toBe(true);
+    }
+    const slow = applyTempo(preset467, tempoSlow);
+    expect(slow.countSeconds).toBe(1.25);
+    expect(slow.ticks).toBe(true);
+    expect(applyTempo({ ...preset467, ticks: false }, tempoFast).ticks).toBe(false);
+    expect(applyTempo(preset467, tempoFast).countSeconds).toBeCloseTo(0.8, 10);
+  });
+
   it('does not mutate the counts-authored catalog preset', () => {
     applyTempo(preset467, tempoSlow);
     expect(durations(preset467)).toEqual([4, 6, 7]);
@@ -395,5 +409,58 @@ describe('Tempo', () => {
       clock.advance(60_000);
       expect(engine.signal()!.sessionElapsedSeconds).toBeCloseTo(60, 10);
     }
+  });
+});
+
+describe('cuesBetween', () => {
+  const summary = (engine: BreathingEngine, from: number, to: number) =>
+    engine.cuesBetween(from, to).map(({ atMs, type, kind }) => [Math.round(atMs), type, kind]);
+
+  it('lists phase and tick cues for one 4-6-7 cycle at Normal tempo', () => {
+    const engine = new BreathingEngine(applyTempo(preset467, tempoNormal));
+    const cues = engine.cuesBetween(0, 17_000);
+    expect(cues.filter((c) => c.type === 'phase').map((c) => [c.atMs, c.kind])).toEqual([
+      [0, 'inhale'],
+      [4_000, 'hold'],
+      [10_000, 'exhale'],
+    ]);
+    expect(cues.filter((c) => c.type === 'tick').map((c) => c.atMs / 1000)).toEqual([
+      1, 2, 3, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16,
+    ]);
+    expect(cues.map((c) => c.atMs)).toEqual([...cues.map((c) => c.atMs)].sort((a, b) => a - b));
+  });
+
+  it('crosses several cycle boundaries', () => {
+    const engine = new BreathingEngine(applyTempo(presetBox4, tempoNormal));
+    const phases = engine.cuesBetween(15_500, 48_500).filter((c) => c.type === 'phase');
+    expect(phases.map((c) => c.atMs / 1000)).toEqual([16, 20, 24, 28, 32, 36, 40, 44, 48]);
+    expect(phases[0]!.kind).toBe('inhale');
+  });
+
+  it('spaces ticks by the tempo count length', () => {
+    const engine = new BreathingEngine(applyTempo(preset467, tempoSlow));
+    expect(summary(engine, 0, 5_000)).toEqual([
+      [0, 'phase', 'inhale'],
+      [1_250, 'tick', 'inhale'],
+      [2_500, 'tick', 'inhale'],
+      [3_750, 'tick', 'inhale'],
+    ]);
+    // Fast: float count lengths must not leak a tick onto the next phase start.
+    const fast = new BreathingEngine(applyTempo(preset467, tempoFast));
+    const ticks = fast.cuesBetween(0, 13_600).filter((c) => c.type === 'tick');
+    expect(ticks).toHaveLength(14);
+  });
+
+  it('includes a cue at fromMs, excludes one at toMs, and handles empty intervals', () => {
+    const engine = new BreathingEngine(applyTempo(preset467, tempoNormal));
+    expect(summary(engine, 4_000, 5_000)).toEqual([[4_000, 'phase', 'hold']]);
+    expect(summary(engine, 3_500, 4_000)).toEqual([]);
+    expect(engine.cuesBetween(2_000, 2_000)).toEqual([]);
+    expect(engine.cuesBetween(3_000, 1_000)).toEqual([]);
+  });
+
+  it('emits only phase cues when the preset has ticks disabled', () => {
+    const engine = new BreathingEngine({ ...preset467, ticks: false });
+    expect(engine.cuesBetween(0, 17_000).map((c) => c.type)).toEqual(['phase', 'phase', 'phase']);
   });
 });

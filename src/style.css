@@ -134,6 +134,38 @@ body {
   stroke-linecap: round;
 }
 
+/* Count tick marks: tinted in the current ring color (set per phase by the
+   renderer as --tick-phase), lightened toward the text color so they stand
+   out on the dim track. Follows night mode through both variables. */
+.ticks line {
+  stroke: color-mix(in srgb, var(--tick-phase, var(--color-idle)) 75%, var(--text));
+  stroke-linecap: round;
+}
+
+/* Tick flash: identical keyframes under two names, so the renderer restarts
+   the animation by switching classes. Thicker and brighter, then back. */
+#ring.flash-a {
+  animation: tick-flash-a 150ms ease-out;
+}
+
+#ring.flash-b {
+  animation: tick-flash-b 150ms ease-out;
+}
+
+@keyframes tick-flash-a {
+  from {
+    stroke-width: 2.2px;
+    filter: brightness(1.6);
+  }
+}
+
+@keyframes tick-flash-b {
+  from {
+    stroke-width: 2.2px;
+    filter: brightness(1.6);
+  }
+}
+
 .overlay {
   position: absolute;
   inset: 0;
@@ -149,13 +181,19 @@ body {
   position: relative;
 }
 
-/* Display preference, available in every session state, so it lives outside
-   the session controls group. Sits above the pointer-transparent overlay. */
-.theme-toggle {
+/* Display preferences (sound, night mode), available in every session state,
+   so they live outside the session controls group. They sit above the
+   pointer-transparent overlay. */
+.display-toggles {
   position: absolute;
   top: max(0.75rem, env(safe-area-inset-top));
   right: max(0.75rem, env(safe-area-inset-right));
   z-index: 1;
+  display: flex;
+  gap: 0.5rem;
+}
+
+.icon-toggle {
   display: grid;
   place-items: center;
   width: 2.75rem;
@@ -169,14 +207,27 @@ body {
   touch-action: manipulation;
 }
 
-.theme-toggle svg {
+.icon-toggle svg {
   width: 1.15rem;
   height: 1.15rem;
   fill: currentColor;
 }
 
-.theme-toggle[aria-pressed='true'] {
+.icon-toggle[aria-pressed='true'] {
   color: var(--color-out);
+}
+
+/* Sound waves are strokes; shown only while sound is on. */
+.icon-toggle .sound-waves {
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 1.8;
+  stroke-linecap: round;
+  visibility: hidden;
+}
+
+.icon-toggle[aria-pressed='true'] .sound-waves {
+  visibility: visible;
 }
 
 #phase-label {

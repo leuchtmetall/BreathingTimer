@@ -1,5 +1,5 @@
 import type { SessionSignal } from './engine';
-import type { PhaseKind } from './presets';
+import type { PhaseKind, Preset } from './presets';
 
 /**
  * Geometry on the square SVG view scale (see design.md). One breathing
@@ -7,6 +7,7 @@ import type { PhaseKind } from './presets';
  * unclipped at full lungs. Layers:
  *   backdrop  decorative dark cue, purely aesthetic (thickest)
  *   track     unfilled slot: matches the filled arc in thickness/position
+ *   ticks     one radial mark per count of the current phase
  *   ring      the breathing circle whose arc fills with elapsed phase time
  *   dot       bright marker riding the boundary between filled and unfilled
  */
@@ -17,6 +18,10 @@ const RING_RADIUS_FULL = 48; // lungs full (8-unit amplitude, >= 2x previous)
 const RING_STROKE = 1.25;
 const BACKDROP_STROKE = 16;
 const DOT_RADIUS = 3.5; // smaller than before, still > ring stroke
+const TICK_LENGTH = 0.6; // centred on the ring stroke
+const TICK_STROKE = 0.6;
+/** Whole-count tolerance, so float tempo lengths land on their tick. */
+const TICK_EPSILON = 1e-6;
 /** Phases shorter than this show no seconds (remaining time = the ring). */
 const COUNTDOWN_MIN_SECONDS = 10;
 
@@ -63,6 +68,7 @@ export interface RenderTargets {
   ring: SVGCircleElement;
   track: SVGCircleElement;
   ringBackdrop: SVGCircleElement;
+  ticks: SVGGElement;
   dot: SVGCircleElement;
   phaseLabel: HTMLElement;
   countdown: HTMLElement;
@@ -77,6 +83,13 @@ export interface RenderTargets {
 export class Renderer {
   private readonly targets: RenderTargets;
   private ringKey = '';
+  /** Active preset's count length (s), or null when it shows no ticks. */
+  private countSeconds: number | null = null;
+  private ticksKey = '';
+  /** Last running frame's phase instance and tick index, for the flash. */
+  private tickPhase = '';
+  private tickIndex = 0;
+  private flashParity = false;
 
   constructor(targets: RenderTargets) {
     this.targets = targets;
@@ -93,6 +106,11 @@ export class Renderer {
     this.setRing(0, RING_RADIUS_BASE);
   }
 
+  /** Sets the tempo-resolved preset whose counts the tick marks follow. */
+  usePreset(preset: Preset): void {
+    this.countSeconds = preset.ticks ? preset.countSeconds : null;
+  }
+
   /** Idle display: neutral colors, all layers at base radius, no dot/countdown. */
   renderIdle(): void {
     this.targets.track.style.stroke = 'var(--color-idle-dim)';
@@ -101,6 +119,9 @@ export class Renderer {
     this.breathe(RING_RADIUS_BASE);
     this.setRing(0, RING_RADIUS_BASE);
     this.targets.dot.setAttribute('visibility', 'hidden');
+    this.setTicks(0, RING_RADIUS_BASE);
+    this.tickPhase = '';
+    this.setFlash(false);
     this.targets.phaseLabel.textContent = 'Ready';
     this.targets.countdown.textContent = '';
     this.targets.sessionStats.textContent = '';
@@ -109,12 +130,15 @@ export class Renderer {
   /** Paused: one frozen frame of the signal. */
   renderPaused(signal: SessionSignal): void {
     this.render(signal);
+    // Never flashes, and keeps the stored tick so resuming does not repeat it.
+    this.setFlash(false);
     this.setLabel(pausedLabel(signal.kind));
   }
 
   /** Running: continuous frame-driven updates. */
   renderRunning(signal: SessionSignal): void {
     this.render(signal);
+    this.detectTick(signal);
     this.setLabel(runningLabel(signal.kind));
   }
 
@@ -135,6 +159,9 @@ export class Renderer {
     // color on every start/phase change — no intermediate memory stage.
     this.targets.track.style.stroke = dimmed(main);
     this.targets.ringBackdrop.style.stroke = DARK_VARIANTS[main];
+    this.setTicks(this.countSeconds === null ? 0 : Math.round(duration / this.countSeconds), radius);
+    // Ticks take the arc's color instantly, like the arc and dot.
+    this.targets.ticks.style.setProperty('--tick-phase', main);
 
     // Dot rides the filled/unfilled boundary at the current breathing radius.
     const angle = -Math.PI / 2 + progress * 2 * Math.PI;
@@ -187,6 +214,60 @@ export class Renderer {
       'stroke-dasharray',
       `${filled} ${circumference.toFixed(2)}`,
     );
+  }
+
+  /** N radial marks from 12 o'clock clockwise, rebuilt only on change. */
+  private setTicks(count: number, radius: number): void {
+    const key = `${count}/${radius.toFixed(2)}`;
+    if (this.ticksKey === key) return;
+    const group = this.targets.ticks;
+    if (group.childElementCount !== count) {
+      group.replaceChildren(
+        ...Array.from({ length: count }, () =>
+          document.createElementNS('http://www.w3.org/2000/svg', 'line'),
+        ),
+      );
+    }
+    this.ticksKey = key;
+    const inner = radius - TICK_LENGTH / 2;
+    const outer = radius + TICK_LENGTH / 2;
+    Array.from(group.children).forEach((line, i) => {
+      const angle = -Math.PI / 2 + (i / count) * 2 * Math.PI;
+      const [cos, sin] = [Math.cos(angle), Math.sin(angle)];
+      line.setAttribute('x1', (CENTER + inner * cos).toFixed(2));
+      line.setAttribute('y1', (CENTER + inner * sin).toFixed(2));
+      line.setAttribute('x2', (CENTER + outer * cos).toFixed(2));
+      line.setAttribute('y2', (CENTER + outer * sin).toFixed(2));
+      line.setAttribute('stroke-width', TICK_STROKE.toFixed(2));
+    });
+  }
+
+  /**
+   * Flashes once when a running frame passes a tick inside the phase it last
+   * saw; a new phase instance (including the first frame) only records it.
+   */
+  private detectTick(signal: SessionSignal): void {
+    if (this.countSeconds === null) return;
+    const phase = `${signal.cycles}/${signal.phaseIndex}`;
+    const index = Math.floor(signal.phaseElapsed / this.countSeconds + TICK_EPSILON);
+    if (phase === this.tickPhase && index > this.tickIndex && index >= 1) this.setFlash(true);
+    this.tickPhase = phase;
+    this.tickIndex = index;
+  }
+
+  /**
+   * Two classes with identical keyframes under different names: switching
+   * between them restarts the CSS animation without forcing a reflow.
+   */
+  private setFlash(on: boolean): void {
+    const ring = this.targets.ring;
+    if (!on) {
+      ring.classList.remove('flash-a', 'flash-b');
+      return;
+    }
+    this.flashParity = !this.flashParity;
+    ring.classList.toggle('flash-a', this.flashParity);
+    ring.classList.toggle('flash-b', !this.flashParity);
   }
 
   private setLabel(label: string): void {

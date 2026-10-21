@@ -2,6 +2,7 @@ import './style.css';
 import { BreathingEngine } from './engine';
 import { applyTempo, defaultTempo, presetChoices, tempoChoices } from './presets';
 import { Renderer, type RenderTargets } from './renderer';
+import { SoundScheduler } from './sound';
 import { ThemeController } from './theme';
 
 function requireTarget<T extends Element>(selector: string): T {
@@ -34,6 +35,7 @@ const targets: RenderTargets = {
   ring: requireTarget<SVGCircleElement>('#ring'),
   track: requireTarget<SVGCircleElement>('.ring-track'),
   ringBackdrop: requireTarget<SVGCircleElement>('#ring-backdrop'),
+  ticks: requireTarget<SVGGElement>('#ticks'),
   dot: requireTarget<SVGCircleElement>('#dot'),
   phaseLabel: requireTarget<HTMLElement>('#phase-label'),
   countdown: requireTarget<HTMLElement>('#countdown'),
@@ -41,13 +43,16 @@ const targets: RenderTargets = {
 };
 
 const renderer = new Renderer(targets);
+const sound = new SoundScheduler();
 let selectedPreset = defaultPreset;
 let selectedTempo = defaultTempo;
 let engine = createEngine();
 
 /** The engine only ever receives a tempo-resolved preset (real seconds). */
 function createEngine(): BreathingEngine {
-  return new BreathingEngine(applyTempo(selectedPreset.preset, selectedTempo));
+  const preset = applyTempo(selectedPreset.preset, selectedTempo);
+  renderer.usePreset(preset);
+  return new BreathingEngine(preset);
 }
 
 function button(id: string): HTMLButtonElement {
@@ -77,6 +82,8 @@ tempoSelector.addEventListener('change', () => {
 });
 
 button('start').addEventListener('click', () => {
+  // Inside the click: browsers only let audio start from a user action.
+  if (sound.isEnabled) sound.unlock();
   engine.start();
   sync();
 });
@@ -100,11 +107,34 @@ new ThemeController(
   typeof window.matchMedia === 'function' ? (query) => window.matchMedia(query) : undefined,
 );
 
+// On at load and never stored, so a reload turns it on again. Audio itself
+// starts on the first Start click (a user action). Never touches the engine:
+// available in every session state.
+const soundToggle = button('sound-toggle');
+sound.setEnabled(true);
+soundToggle.setAttribute('aria-pressed', 'true');
+soundToggle.addEventListener('click', () => {
+  const on = !sound.isEnabled;
+  if (on) sound.unlock();
+  sound.setEnabled(on);
+  soundToggle.setAttribute('aria-pressed', String(on));
+  sound.sync(engine);
+});
+
+// Hidden tabs get no frames and throttled timers; the queued horizon covers
+// the gap, and this keeps it topped up whenever a timer does fire.
+setInterval(() => sound.sync(engine), 5_000);
+document.addEventListener('visibilitychange', () => {
+  if (document.visibilityState === 'visible') sound.recover();
+});
+
 /** Control visibility + a first frame render on every state transition. */
 function sync(): void {
   app.dataset.sessionState = engine.state;
   presetSelector.disabled = engine.state !== 'idle';
   tempoSelector.disabled = engine.state !== 'idle';
+  // Start/resume queue sounds; pause/reset cancel them.
+  sound.sync(engine);
   update();
 }
 
@@ -124,6 +154,7 @@ function update(): void {
 // the session.
 function frame(): void {
   update();
+  sound.sync(engine);
   requestAnimationFrame(frame);
 }
 

@@ -67,7 +67,15 @@ function sourcesMtime(): number {
   const root = join(import.meta.dirname, '..');
   let latest = statSync(join(root, 'index.html')).mtimeMs;
   const base = join(root, 'src');
-  for (const f of ['main.ts', 'engine.ts', 'renderer.ts', 'presets.ts', 'theme.ts', 'style.css']) {
+  for (const f of [
+    'main.ts',
+    'engine.ts',
+    'renderer.ts',
+    'presets.ts',
+    'theme.ts',
+    'sound.ts',
+    'style.css',
+  ]) {
     latest = Math.max(latest, statSync(join(base, f)).mtimeMs);
   }
   return latest;
@@ -135,6 +143,33 @@ describe('built single-file app (dist/index.html)', () => {
     app.advance(6_100);
     expect(label()).toBe('Breathe in');
 
+    expect(app.errors).toEqual([]);
+  });
+
+  it('ships tick marks and the sound switch with no external or audio-file resources', () => {
+    const html = readFileSync(distPath, 'utf8');
+    // Nothing is loaded from outside the file: no src/href to a URL, no
+    // audio files (sounds are synthesized in the page).
+    expect(html).not.toMatch(/\b(?:src|href)=["']?(?:https?:)?\/\//i);
+    expect(html).not.toMatch(/\.(?:mp3|wav|ogg|m4a|aac|flac)\b/i);
+    expect(html).not.toMatch(/<audio\b/i);
+
+    const app = loadBuiltApp();
+    const { document } = app.dom.window;
+    const ticks = () => document.querySelectorAll('#ticks line').length;
+    const toggle = document.querySelector<HTMLButtonElement>('#sound-toggle')!;
+    expect(toggle).not.toBeNull();
+    expect(toggle.getAttribute('aria-pressed')).toBe('true'); // on by default
+
+    app.stepFrame();
+    expect(ticks()).toBe(0); // idle
+    (document.querySelector('#start')! as HTMLButtonElement).click();
+    app.advance(500);
+    expect(ticks()).toBe(4); // 4-6-7 inhale
+    toggle.click(); // jsdom has no Web Audio: switches, stays silent, no errors
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    app.advance(4_000);
+    expect(ticks()).toBe(6); // hold
     expect(app.errors).toEqual([]);
   });
 });

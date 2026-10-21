@@ -26,6 +26,16 @@ export interface SessionSignal {
 }
 
 /**
+ * A timed sound cue in session time: `phase` at every phase start, `tick` at
+ * every whole count inside a phase (only for presets with ticks).
+ */
+export interface Cue {
+  readonly atMs: number;
+  readonly type: 'phase' | 'tick';
+  readonly kind: PhaseKind;
+}
+
+/**
  * Breathing session control state machine.
  *
  * The engine owns no timers: a single external animation loop calls
@@ -111,6 +121,35 @@ export class BreathingEngine {
     // Exactly on a cycle boundary: the boundary belongs to the next cycle,
     // but its first phase starts with elapsed 0 of that cycle.
     return phaseSignal(0, phases[0]!, 0, cycles + 1, sessionElapsedMs);
+  }
+
+  /**
+   * Cues in session time over the half-open interval [fromMs, toMs), in
+   * order. Pure, like `signalAt`; the sound scheduler queues these ahead.
+   */
+  cuesBetween(fromMs: number, toMs: number): Cue[] {
+    const cues: Cue[] = [];
+    if (toMs <= fromMs) return cues;
+    const cycleMs = this.cycleMs;
+    const countMs = this.preset.countSeconds * 1000;
+    const firstCycle = Math.floor(fromMs / cycleMs) * cycleMs;
+    for (let cycleStart = firstCycle; cycleStart < toMs; cycleStart += cycleMs) {
+      let phaseStart = cycleStart;
+      for (const phase of this.preset.phases) {
+        const durMs = phase.seconds * 1000;
+        const push = (atMs: number, type: Cue['type']) => {
+          if (atMs >= fromMs && atMs < toMs) cues.push({ atMs, type, kind: phase.kind });
+        };
+        push(phaseStart, 'phase');
+        if (this.preset.ticks) {
+          // Whole counts strictly inside the phase; the epsilon keeps float
+          // rounding from emitting a tick on the next phase's start.
+          for (let n = 1; n * countMs < durMs - 1e-6; n++) push(phaseStart + n * countMs, 'tick');
+        }
+        phaseStart += durMs;
+      }
+    }
+    return cues;
   }
 }
 
