@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BreathingEngine, type Clock } from './engine';
-import { preset467, type Preset } from './presets';
+import { preset467, presetChoices, type Preset } from './presets';
 
 /** Clock hand-settable by tests, simulating wall time. */
 class FakeClock implements Clock {
@@ -214,5 +214,49 @@ describe('BreathingEngine', () => {
     engine.reset();
     engine.resume(); // idle again after reset: resume must not start a session
     expect(engine.state).toBe('idle');
+  });
+});
+
+describe('Box Breathing presets', () => {
+  const boxChoices = presetChoices.slice(1);
+
+  it.each(boxChoices)('$label defines four equal-duration phases with correct fill', ({ preset }) => {
+    expect(preset.phases.map(({ kind }) => kind)).toEqual([
+      'inhale',
+      'hold',
+      'exhale',
+      'hold',
+    ]);
+    const seconds = preset.phases[0]!.seconds;
+    expect(preset.phases.map(({ seconds: duration }) => duration)).toEqual([
+      seconds,
+      seconds,
+      seconds,
+      seconds,
+    ]);
+    expect(preset.phases.map(({ fill }) => fill)).toEqual([
+      [0, 1],
+      [1, 1],
+      [1, 0],
+      [0, 0],
+    ]);
+  });
+
+  it.each(boxChoices)('$label advances all phases and repeats on its cycle boundary', ({ preset }) => {
+    const engine = new BreathingEngine(preset, new FakeClock());
+    const seconds = preset.phases[0]!.seconds;
+
+    for (let index = 0; index < preset.phases.length; index++) {
+      const signal = engine.signalAt(index * seconds * 1000);
+      expect(signal.phaseIndex).toBe(index);
+      expect(signal.kind).toBe(preset.phases[index]!.kind);
+      expect(signal.phaseElapsed).toBeCloseTo(0);
+    }
+
+    expect(engine.cycleMs).toBe(seconds * 4 * 1000);
+    const nextCycle = engine.signalAt(engine.cycleMs);
+    expect(nextCycle.kind).toBe('inhale');
+    expect(nextCycle.phaseIndex).toBe(0);
+    expect(nextCycle.cycles).toBe(1);
   });
 });

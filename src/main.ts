@@ -1,6 +1,6 @@
 import './style.css';
 import { BreathingEngine } from './engine';
-import { preset467 } from './presets';
+import { presetChoices } from './presets';
 import { Renderer, type RenderTargets } from './renderer';
 
 function requireTarget<T extends Element>(selector: string): T {
@@ -10,6 +10,16 @@ function requireTarget<T extends Element>(selector: string): T {
 }
 
 const app = requireTarget<HTMLElement>('#app');
+const presetSelector = requireTarget<HTMLSelectElement>('#preset-select');
+for (const choice of presetChoices) {
+  const option = document.createElement('option');
+  option.value = choice.id;
+  option.textContent = choice.label;
+  presetSelector.append(option);
+}
+const defaultPreset = presetChoices[0]!;
+presetSelector.value = defaultPreset.id;
+
 const targets: RenderTargets = {
   ring: requireTarget<SVGCircleElement>('#ring'),
   track: requireTarget<SVGCircleElement>('.ring-track'),
@@ -20,11 +30,27 @@ const targets: RenderTargets = {
 };
 
 const renderer = new Renderer(targets);
-const engine = new BreathingEngine(preset467);
+let selectedPreset = defaultPreset;
+let engine = new BreathingEngine(selectedPreset.preset);
 
 function button(id: string): HTMLButtonElement {
   return requireTarget<HTMLButtonElement>(`#${id}`);
 }
+
+presetSelector.addEventListener('change', () => {
+  if (engine.state !== 'idle') {
+    presetSelector.value = selectedPreset.id;
+    return;
+  }
+  const choice = presetChoices.find(({ id }) => id === presetSelector.value);
+  if (!choice) {
+    presetSelector.value = selectedPreset.id;
+    return;
+  }
+  selectedPreset = choice;
+  engine = new BreathingEngine(selectedPreset.preset);
+  sync();
+});
 
 button('start').addEventListener('click', () => {
   engine.start();
@@ -46,6 +72,7 @@ button('reset').addEventListener('click', () => {
 /** Control visibility + a first frame render on every state transition. */
 function sync(): void {
   app.dataset.sessionState = engine.state;
+  presetSelector.disabled = engine.state !== 'idle';
   update();
 }
 

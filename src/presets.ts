@@ -30,3 +30,33 @@ export const preset467: Preset = {
     { kind: 'exhale', seconds: 7, fill: [1, 0] },
   ],
 };
+
+function boxPreset(seconds: number): Preset {
+  return {
+    name: `Box Breathing (${seconds}s per phase)`,
+    phases: [
+      { kind: 'inhale', seconds, fill: [0, 1] },
+      { kind: 'hold', seconds, fill: [1, 1] },
+      { kind: 'exhale', seconds, fill: [1, 0] },
+      { kind: 'hold', seconds, fill: [0, 0] },
+    ],
+  };
+}
+
+export const presetBox4 = boxPreset(4);
+export const presetBox5 = boxPreset(5);
+export const presetBox7 = boxPreset(7);
+
+export interface PresetChoice {
+  id: string;
+  label: string;
+  preset: Preset;
+}
+
+/** Ordered UI catalog; the first entry is the default selection. */
+export const presetChoices: readonly PresetChoice[] = [
+  { id: '467', label: '4-6-7', preset: preset467 },
+  { id: 'box-4', label: 'Box Breathing (4s per phase)', preset: presetBox4 },
+  { id: 'box-5', label: 'Box Breathing (5s per phase)', preset: presetBox5 },
+  { id: 'box-7', label: 'Box Breathing (7s per phase)', preset: presetBox7 },
+];

@@ -1,9 +1,9 @@
 // @vitest-environment jsdom
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
-import { beforeAll, describe, expect, it } from 'vitest';
+import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { BreathingEngine, type Clock } from './engine';
-import { preset467, type Preset } from './presets';
+import { preset467, presetChoices, type Preset } from './presets';
 import { Renderer, type RenderTargets } from './renderer';
 
 class FakeClock implements Clock {
@@ -367,20 +367,49 @@ describe('Control wiring', () => {
     const app = document.querySelector<HTMLElement>('#app')!;
     expect(app.getAttribute('data-session-state')).toBe('idle');
 
+    const presetSelector = document.querySelector<HTMLSelectElement>('#preset-select')!;
+    expect(document.querySelector('label[for="preset-select"]')!.textContent).toContain(
+      'Breathing pattern',
+    );
+    expect(Array.from(presetSelector.options, ({ value, textContent }) => [value, textContent])).toEqual(
+      presetChoices.map(({ id, label }) => [id, label]),
+    );
+    expect(presetSelector.value).toBe('467');
+
+    presetSelector.value = 'box-5';
+    presetSelector.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(presetSelector.value).toBe('box-5');
+
+    const now = vi.spyOn(performance, 'now').mockReturnValue(0);
     (document.querySelector('#start') as HTMLButtonElement).click();
     expect(app.getAttribute('data-session-state')).toBe('running');
+    expect(presetSelector.disabled).toBe(true);
     expect(
       (document.querySelector('#phase-label') as HTMLElement).textContent,
     ).toBe('Breathe in');
 
+    now.mockReturnValue(4500);
     (document.querySelector('#pause') as HTMLButtonElement).click();
     expect(app.getAttribute('data-session-state')).toBe('paused');
+    expect(
+      (document.querySelector('#phase-label') as HTMLElement).textContent,
+    ).toBe('Paused · breathe in'); // Box Breathing (5s) has not reached its hold.
+    expect(presetSelector.disabled).toBe(true);
 
+    presetSelector.value = 'box-7';
+    presetSelector.dispatchEvent(new Event('change', { bubbles: true }));
+    expect(presetSelector.value).toBe('box-5');
+
+    (document.querySelector('#resume') as HTMLButtonElement).click();
+    expect(app.getAttribute('data-session-state')).toBe('running');
     (document.querySelector('#reset') as HTMLButtonElement).click();
     expect(app.getAttribute('data-session-state')).toBe('idle');
+    expect(presetSelector.disabled).toBe(false);
+    expect(presetSelector.value).toBe('box-5');
     expect(
       (document.querySelector('#phase-label') as HTMLElement).textContent,
     ).toBe('Ready');
+    now.mockRestore();
   });
 });
 
