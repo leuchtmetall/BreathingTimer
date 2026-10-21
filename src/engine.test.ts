@@ -42,6 +42,7 @@ describe('BreathingEngine', () => {
     expect(s!.phaseIndex).toBe(0);
     expect(s!.phaseElapsed).toBeCloseTo(0);
     expect(s!.cycles).toBe(0);
+    expect(s!.sessionElapsedSeconds).toBeCloseTo(0);
   });
 
   it('advances inhale 4s -> hold 6s -> exhale 7s in order', () => {
@@ -173,6 +174,28 @@ describe('BreathingEngine', () => {
     expect(engine.state).toBe('running');
     expect(s!.phaseElapsed).toBeCloseTo(3); // 2s pre-pause + 1s
     expect(s!.phaseRemaining).toBeCloseTo(3);
+  });
+
+  it('reports active elapsed time, excluding pauses and resetting to zero', () => {
+    const clock = new FakeClock();
+    const engine = new BreathingEngine(preset467, clock);
+    engine.start();
+    expect(engine.signal()!.sessionElapsedSeconds).toBeCloseTo(0);
+
+    clock.advance(1_500);
+    expect(engine.signal()!.sessionElapsedSeconds).toBeCloseTo(1.5);
+    engine.pause();
+    clock.advance(60_000);
+    expect(engine.signal()!.sessionElapsedSeconds).toBeCloseTo(1.5);
+
+    engine.resume();
+    clock.advance(500);
+    expect(engine.signal()!.sessionElapsedSeconds).toBeCloseTo(2);
+
+    engine.reset();
+    expect(engine.signal()).toBeNull();
+    engine.start();
+    expect(engine.signal()!.sessionElapsedSeconds).toBeCloseTo(0);
   });
 
   it('pause across a phase boundary resumes in the correct later phase', () => {

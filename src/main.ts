@@ -27,6 +27,7 @@ const targets: RenderTargets = {
   dot: requireTarget<SVGCircleElement>('#dot'),
   phaseLabel: requireTarget<HTMLElement>('#phase-label'),
   countdown: requireTarget<HTMLElement>('#countdown'),
+  sessionStats: requireTarget<HTMLElement>('#session-stats'),
 };
 
 const renderer = new Renderer(targets);

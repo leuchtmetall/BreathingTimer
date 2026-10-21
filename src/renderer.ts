@@ -66,6 +66,7 @@ export interface RenderTargets {
   dot: SVGCircleElement;
   phaseLabel: HTMLElement;
   countdown: HTMLElement;
+  sessionStats: HTMLElement;
 }
 
 /**
@@ -102,6 +103,7 @@ export class Renderer {
     this.targets.dot.setAttribute('visibility', 'hidden');
     this.targets.phaseLabel.textContent = 'Ready';
     this.targets.countdown.textContent = '';
+    this.targets.sessionStats.textContent = '';
   }
 
   /** Paused: one frozen frame of the signal. */
@@ -155,6 +157,11 @@ export class Renderer {
     if (this.targets.countdown.textContent !== text) {
       this.targets.countdown.textContent = text;
     }
+
+    const stats = `Cycles: ${signal.cycles} · Time: ${formatSessionTime(signal.sessionElapsedSeconds)}`;
+    if (this.targets.sessionStats.textContent !== stats) {
+      this.targets.sessionStats.textContent = stats;
+    }
   }
 
   /** Syncs all circle layers onto the shared breathing radius. */
@@ -191,6 +198,15 @@ export class Renderer {
 
 function clamp01(x: number): number {
   return Math.min(Math.max(x, 0), 1);
+}
+
+function formatSessionTime(totalSeconds: number): string {
+  const elapsed = Math.max(0, Math.floor(totalSeconds));
+  const minutes = Math.floor(elapsed / 60)
+    .toString()
+    .padStart(2, '0');
+  const seconds = (elapsed % 60).toString().padStart(2, '0');
+  return `${minutes}:${seconds}`;
 }
 
 /** Dimmed shade of a bright phase color (for the unfilled track). */

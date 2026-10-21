@@ -30,6 +30,7 @@ function targets(): RenderTargets {
     dot: document.querySelector<SVGCircleElement>('#dot')!,
     phaseLabel: document.querySelector<HTMLElement>('#phase-label')!,
     countdown: document.querySelector<HTMLElement>('#countdown')!,
+    sessionStats: document.querySelector<HTMLElement>('#session-stats')!,
   };
 }
 
@@ -278,6 +279,30 @@ describe('Renderer (DOM)', () => {
     expect(document.querySelector('#countdown')!.textContent).toBe('13');
   });
 
+  it('shows completed cycles and formats total session time', () => {
+    const engine = new BreathingEngine(preset467, new FakeClock());
+    engine.start();
+    const r = new Renderer(targets());
+
+    r.renderRunning(engine.signalAt(0));
+    expect(document.querySelector('#session-stats')!.textContent).toBe(
+      'Cycles: 0 · Time: 00:00',
+    );
+
+    r.renderRunning(engine.signalAt(17_000)); // first complete 4-6-7 cycle
+    expect(document.querySelector('#session-stats')!.textContent).toBe(
+      'Cycles: 1 · Time: 00:17',
+    );
+
+    r.renderRunning(engine.signalAt(60_000));
+    expect(document.querySelector('#session-stats')!.textContent).toBe(
+      'Cycles: 3 · Time: 01:00',
+    );
+
+    r.renderIdle();
+    expect(document.querySelector('#session-stats')!.textContent).toBe('');
+  });
+
   it('freezes displayed values while paused', () => {
     const clock = new FakeClock();
     const engine = new BreathingEngine(preset467, clock);
@@ -288,12 +313,14 @@ describe('Renderer (DOM)', () => {
     r.renderPaused(engine.signal()!);
     const radius = ringRadius();
     const remaining = document.querySelector('#countdown')!.textContent;
+    const stats = document.querySelector('#session-stats')!.textContent;
 
     clock.t = 66_000; // wall time passes but the signal is frozen
     r.renderPaused(engine.signal()!);
     expect(ringRadius()).toBe(radius);
     expect(ringProgress()).toBeCloseTo(2 / 6, 2);
     expect(document.querySelector('#countdown')!.textContent).toBe(remaining);
+    expect(document.querySelector('#session-stats')!.textContent).toBe(stats);
     expect(
       (document.querySelector('#phase-label') as HTMLElement).textContent!.startsWith('Paused'),
     ).toBe(true);
@@ -387,6 +414,9 @@ describe('Control wiring', () => {
     expect(
       (document.querySelector('#phase-label') as HTMLElement).textContent,
     ).toBe('Breathe in');
+    expect(document.querySelector('#session-stats')!.textContent).toBe(
+      'Cycles: 0 · Time: 00:00',
+    );
 
     now.mockReturnValue(4500);
     (document.querySelector('#pause') as HTMLButtonElement).click();
@@ -409,6 +439,7 @@ describe('Control wiring', () => {
     expect(
       (document.querySelector('#phase-label') as HTMLElement).textContent,
     ).toBe('Ready');
+    expect(document.querySelector('#session-stats')!.textContent).toBe('');
     now.mockRestore();
   });
 });

@@ -116,6 +116,14 @@ body {
   color: var(--text);
 }
 
+#session-stats {
+  margin: 0.5rem 0 0;
+  color: var(--muted);
+  font-size: clamp(0.8rem, 3vmin, 1rem);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
 .controls {
   display: flex;
   flex-wrap: wrap;

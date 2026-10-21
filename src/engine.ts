@@ -21,6 +21,8 @@ export interface SessionSignal {
   readonly fill: number;
   /** Number of complete cycles finished before the current phase. */
   readonly cycles: number;
+  /** Active session time in seconds; excludes time spent paused. */
+  readonly sessionElapsedSeconds: number;
 }
 
 /**
@@ -103,12 +105,12 @@ export class BreathingEngine {
     for (let i = 0; i < phases.length; i++) {
       const phase = phases[i]!;
       const durMs = phase.seconds * 1000;
-      if (t < durMs) return phaseSignal(i, phase, t, cycles);
+      if (t < durMs) return phaseSignal(i, phase, t, cycles, sessionElapsedMs);
       t -= durMs;
     }
     // Exactly on a cycle boundary: the boundary belongs to the next cycle,
     // but its first phase starts with elapsed 0 of that cycle.
-    return phaseSignal(0, phases[0]!, 0, cycles + 1);
+    return phaseSignal(0, phases[0]!, 0, cycles + 1, sessionElapsedMs);
   }
 }
 
@@ -117,6 +119,7 @@ function phaseSignal(
   phase: Phase,
   elapsedMs: number,
   cycles: number,
+  sessionElapsedMs: number,
 ): SessionSignal {
   const durMs = phase.seconds * 1000;
   const frac = durMs === 0 ? 1 : Math.min(Math.max(elapsedMs / durMs, 0), 1);
@@ -128,5 +131,6 @@ function phaseSignal(
     phaseRemaining: Math.max(phase.seconds - elapsedMs / 1000, 0),
     fill: from + (to - from) * frac,
     cycles,
+    sessionElapsedSeconds: sessionElapsedMs / 1000,
   };
 }
