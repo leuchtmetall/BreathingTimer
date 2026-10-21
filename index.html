@@ -20,12 +20,28 @@
           <p id="countdown" aria-hidden="true"></p>
           <p id="session-stats"></p>
         </div>
+        <button
+          id="theme-toggle"
+          class="theme-toggle"
+          type="button"
+          aria-label="Night mode"
+          aria-pressed="false"
+          title="Night mode"
+        >
+          <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+            <path d="M20.5 14.6A8.5 8.5 0 1 1 9.4 3.5a7 7 0 0 0 11.1 11.1z" />
+          </svg>
+        </button>
       </section>
 
       <div class="controls" role="group" aria-label="Session controls">
         <label class="preset-control" for="preset-select">
           <span>Breathing pattern</span>
           <select id="preset-select"></select>
+        </label>
+        <label class="preset-control" for="tempo-select">
+          <span>Tempo</span>
+          <select id="tempo-select"></select>
         </label>
         <button id="start" type="button">Start</button>
         <button id="pause" type="button">Pause</button>

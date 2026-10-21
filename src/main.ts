@@ -1,7 +1,8 @@
 import './style.css';
 import { BreathingEngine } from './engine';
-import { presetChoices } from './presets';
+import { applyTempo, defaultTempo, presetChoices, tempoChoices } from './presets';
 import { Renderer, type RenderTargets } from './renderer';
+import { ThemeController } from './theme';
 
 function requireTarget<T extends Element>(selector: string): T {
   const el = document.querySelector(selector);
@@ -20,6 +21,15 @@ for (const choice of presetChoices) {
 const defaultPreset = presetChoices[0]!;
 presetSelector.value = defaultPreset.id;
 
+const tempoSelector = requireTarget<HTMLSelectElement>('#tempo-select');
+for (const tempo of tempoChoices) {
+  const option = document.createElement('option');
+  option.value = tempo.id;
+  option.textContent = tempo.label;
+  tempoSelector.append(option);
+}
+tempoSelector.value = defaultTempo.id;
+
 const targets: RenderTargets = {
   ring: requireTarget<SVGCircleElement>('#ring'),
   track: requireTarget<SVGCircleElement>('.ring-track'),
@@ -32,24 +42,37 @@ const targets: RenderTargets = {
 
 const renderer = new Renderer(targets);
 let selectedPreset = defaultPreset;
-let engine = new BreathingEngine(selectedPreset.preset);
+let selectedTempo = defaultTempo;
+let engine = createEngine();
+
+/** The engine only ever receives a tempo-resolved preset (real seconds). */
+function createEngine(): BreathingEngine {
+  return new BreathingEngine(applyTempo(selectedPreset.preset, selectedTempo));
+}
 
 function button(id: string): HTMLButtonElement {
   return requireTarget<HTMLButtonElement>(`#${id}`);
 }
 
 presetSelector.addEventListener('change', () => {
-  if (engine.state !== 'idle') {
-    presetSelector.value = selectedPreset.id;
-    return;
-  }
   const choice = presetChoices.find(({ id }) => id === presetSelector.value);
-  if (!choice) {
+  if (engine.state !== 'idle' || !choice) {
     presetSelector.value = selectedPreset.id;
     return;
   }
   selectedPreset = choice;
-  engine = new BreathingEngine(selectedPreset.preset);
+  engine = createEngine();
+  sync();
+});
+
+tempoSelector.addEventListener('change', () => {
+  const choice = tempoChoices.find(({ id }) => id === tempoSelector.value);
+  if (engine.state !== 'idle' || !choice) {
+    tempoSelector.value = selectedTempo.id;
+    return;
+  }
+  selectedTempo = choice;
+  engine = createEngine();
   sync();
 });
 
@@ -70,10 +93,18 @@ button('reset').addEventListener('click', () => {
   sync();
 });
 
+// Available in every session state; never touches the engine.
+new ThemeController(
+  document.documentElement,
+  button('theme-toggle'),
+  typeof window.matchMedia === 'function' ? (query) => window.matchMedia(query) : undefined,
+);
+
 /** Control visibility + a first frame render on every state transition. */
 function sync(): void {
   app.dataset.sessionState = engine.state;
   presetSelector.disabled = engine.state !== 'idle';
+  tempoSelector.disabled = engine.state !== 'idle';
   update();
 }
 

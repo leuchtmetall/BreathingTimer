@@ -3,7 +3,15 @@ import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { BreathingEngine, type Clock } from './engine';
-import { preset467, presetChoices, type Preset } from './presets';
+import {
+  applyTempo,
+  preset467,
+  presetBox7,
+  presetChoices,
+  tempoChoices,
+  tempoSlow,
+  type Preset,
+} from './presets';
 import { Renderer, type RenderTargets } from './renderer';
 
 class FakeClock implements Clock {
@@ -279,6 +287,27 @@ describe('Renderer (DOM)', () => {
     expect(document.querySelector('#countdown')!.textContent).toBe('13');
   });
 
+  it('applies the 10-second countdown threshold to real, tempo-scaled duration', () => {
+    const countdown = () => document.querySelector('#countdown')!.textContent;
+
+    // Box-7 at Slow: 8.75 real seconds per phase -> below the threshold.
+    const box = new BreathingEngine(applyTempo(presetBox7, tempoSlow), new FakeClock());
+    const boxRenderer = new Renderer(targets());
+    for (const ms of [2_000, 10_000, 20_000, 30_000]) {
+      boxRenderer.renderRunning(box.signalAt(ms));
+      expect(countdown()).toBe('');
+    }
+
+    // The converse proves it is real seconds, not counts: an 8-count exhale
+    // (hidden at Normal) lasts 10 real seconds at Slow and so shows seconds.
+    const long = new BreathingEngine(applyTempo(longHoldPreset(), tempoSlow), new FakeClock());
+    const longRenderer = new Renderer(targets());
+    // Slow long-hold: inhale 5 s + hold 18.75 s, so the exhale starts at 23.75 s.
+    longRenderer.renderRunning(long.signalAt(23_750 + 2_500));
+    expect(document.querySelector('#phase-label')!.textContent).toBe('Breathe out');
+    expect(countdown()).toBe('8'); // ceil(10 - 2.5)
+  });
+
   it('shows completed cycles and formats total session time', () => {
     const engine = new BreathingEngine(preset467, new FakeClock());
     engine.start();
@@ -440,6 +469,129 @@ describe('Control wiring', () => {
       (document.querySelector('#phase-label') as HTMLElement).textContent,
     ).toBe('Ready');
     expect(document.querySelector('#session-stats')!.textContent).toBe('');
+    now.mockRestore();
+  });
+
+  it('applies the selected tempo to a new session and locks it while active', async () => {
+    viStubRaf();
+    await import('./main');
+
+    const label = () => (document.querySelector('#phase-label') as HTMLElement).textContent;
+    const click = (id: string) => (document.querySelector(`#${id}`) as HTMLButtonElement).click();
+    const choose = (select: HTMLSelectElement, value: string) => {
+      select.value = value;
+      select.dispatchEvent(new Event('change', { bubbles: true }));
+    };
+    const presetSelector = document.querySelector<HTMLSelectElement>('#preset-select')!;
+    const tempoSelector = document.querySelector<HTMLSelectElement>('#tempo-select')!;
+
+    expect(tempoSelector).not.toBeNull();
+    expect(tempoSelector.closest('.controls')).not.toBeNull();
+    expect(document.querySelector('label[for="tempo-select"]')!.textContent).toContain('Tempo');
+    expect(Array.from(tempoSelector.options, ({ value, textContent }) => [value, textContent])).toEqual(
+      tempoChoices.map(({ id, label: text }) => [id, text]),
+    );
+    expect(tempoSelector.value).toBe('normal');
+    expect(tempoSelector.disabled).toBe(false);
+
+    choose(presetSelector, '467');
+    choose(tempoSelector, 'fast');
+    expect(tempoSelector.value).toBe('fast');
+
+    // Fast 4-6-7: the inhale lasts 3.2 s, so 3.3 s is already the hold
+    // (at Normal tempo it would still be the inhale).
+    const now = vi.spyOn(performance, 'now').mockReturnValue(0);
+    click('start');
+    expect(tempoSelector.disabled).toBe(true);
+    now.mockReturnValue(3_100);
+    click('pause');
+    expect(label()).toBe('Paused · breathe in');
+    expect(tempoSelector.disabled).toBe(true);
+
+    // A change attempted while active is rejected and the display restored.
+    choose(tempoSelector, 'slow');
+    expect(tempoSelector.value).toBe('fast');
+
+    click('resume');
+    expect(tempoSelector.disabled).toBe(true);
+    now.mockReturnValue(3_300);
+    click('pause');
+    expect(label()).toBe('Paused · hold');
+
+    click('reset');
+    expect(tempoSelector.disabled).toBe(false);
+    expect(tempoSelector.value).toBe('fast');
+    expect(presetSelector.value).toBe('467');
+    now.mockRestore();
+  });
+
+  it('offers an accessible night toggle outside the session controls', async () => {
+    viStubRaf();
+    await import('./main');
+
+    const toggle = document.querySelector<HTMLButtonElement>('#theme-toggle')!;
+    expect(toggle.tagName).toBe('BUTTON');
+    expect(toggle.type).toBe('button');
+    expect(toggle.closest('.controls')).toBeNull();
+    expect(toggle.closest('.display')).not.toBeNull();
+    // Keyboard reachable: a native, enabled button in the tab order.
+    expect(toggle.disabled).toBe(false);
+    expect(toggle.tabIndex).toBeGreaterThanOrEqual(0);
+    toggle.focus();
+    expect(document.activeElement).toBe(toggle);
+    // Announced as a "Night mode" toggle with its on/off state; the glyph is hidden.
+    expect(toggle.getAttribute('aria-label')).toBe('Night mode');
+    expect(toggle.querySelector('svg')!.getAttribute('aria-hidden')).toBe('true');
+    // jsdom has no matchMedia, so the app falls back to day mode.
+    expect(toggle.getAttribute('aria-pressed')).toBe('false');
+    expect(document.documentElement.dataset.theme).toBeUndefined();
+  });
+
+  it('switches the palette mid-session without disturbing the session', async () => {
+    viStubRaf();
+    await import('./main');
+
+    const root = document.documentElement;
+    const app = document.querySelector<HTMLElement>('#app')!;
+    const toggle = document.querySelector<HTMLButtonElement>('#theme-toggle')!;
+    const click = (id: string) => (document.querySelector(`#${id}`) as HTMLButtonElement).click();
+    const label = () => (document.querySelector('#phase-label') as HTMLElement).textContent;
+    const stats = () => document.querySelector('#session-stats')!.textContent;
+    const preset = document.querySelector<HTMLSelectElement>('#preset-select')!;
+    const tempo = document.querySelector<HTMLSelectElement>('#tempo-select')!;
+    preset.value = '467';
+    preset.dispatchEvent(new Event('change', { bubbles: true }));
+    tempo.value = 'normal';
+    tempo.dispatchEvent(new Event('change', { bubbles: true }));
+
+    const now = vi.spyOn(performance, 'now').mockReturnValue(0);
+    click('start');
+    now.mockReturnValue(5_000); // 1 s into the 6 s hold
+
+    toggle.click(); // while running
+    expect(root.dataset.theme).toBe('night');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    expect(app.dataset.sessionState).toBe('running');
+
+    now.mockReturnValue(12_000); // 2 s into the exhale
+    click('pause');
+    expect(label()).toBe('Paused · breathe out');
+    expect(stats()).toBe('Cycles: 0 · Time: 00:12');
+
+    toggle.click(); // while paused
+    expect(root.dataset.theme).toBe('day');
+    expect(app.dataset.sessionState).toBe('paused');
+    expect(label()).toBe('Paused · breathe out');
+    expect(stats()).toBe('Cycles: 0 · Time: 00:12');
+
+    click('resume');
+    now.mockReturnValue(18_000); // 1 s into the second cycle
+    click('pause');
+    expect(label()).toBe('Paused · breathe in');
+    expect(stats()).toBe('Cycles: 1 · Time: 00:18');
+
+    click('reset');
+    delete root.dataset.theme;
     now.mockRestore();
   });
 });

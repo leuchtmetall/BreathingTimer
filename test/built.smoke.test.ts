@@ -67,7 +67,7 @@ function sourcesMtime(): number {
   const root = join(import.meta.dirname, '..');
   let latest = statSync(join(root, 'index.html')).mtimeMs;
   const base = join(root, 'src');
-  for (const f of ['main.ts', 'engine.ts', 'renderer.ts', 'presets.ts', 'style.css']) {
+  for (const f of ['main.ts', 'engine.ts', 'renderer.ts', 'presets.ts', 'theme.ts', 'style.css']) {
     latest = Math.max(latest, statSync(join(base, f)).mtimeMs);
   }
   return latest;
