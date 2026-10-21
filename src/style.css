@@ -1,0 +1,160 @@
+/* Palette: night mode later redefines these variables only. Three shades per
+   hue: bright (filled arc + dot), dim (unfilled track), dark (backdrop). */
+:root {
+  --bg: #101319;
+  --panel: #1a1f28;
+  --text: #e8ebf0;
+  --muted: #8a8f98;
+  --color-in: #e5484d; /* inhale */
+  --color-in-dim: #63191e;
+  --color-in-dark: #38110f;
+  --color-out: #3e8fdd; /* exhale */
+  --color-out-dim: #1c3f60;
+  --color-out-dark: #0f2236;
+  /* Holds are gray: lighter with full lungs than with empty lungs. */
+  --color-hold-full: #c3c8cf;
+  --color-hold-full-dim: #565b62;
+  --color-hold-full-dark: #2c2f34;
+  --color-idle: #6b7280; /* empty-lung hold / idle */
+  --color-idle-dim: #33373e;
+  --color-idle-dark: #1b1e23;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html,
+body {
+  height: 100%;
+}
+
+body {
+  margin: 0;
+  background: var(--bg);
+  color: var(--text);
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+}
+
+/* Full-viewport column: shape centered, controls anchored at the bottom. */
+.app {
+  height: 100dvh;
+  display: flex;
+  flex-direction: column;
+}
+
+.display {
+  flex: 1;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 0;
+  padding: 1rem;
+}
+
+/* SVG scales with the viewport; capped for large screens. */
+.display svg {
+  width: min(90vmin, 480px);
+  height: min(90vmin, 480px);
+}
+
+.ring-backdrop {
+  fill: none;
+  stroke: var(--color-idle-dark);
+  stroke-linecap: round;
+}
+
+/* Static unfilled slot: dim phase shade, slightly lighter than the backdrop. */
+.ring-track {
+  fill: none;
+  stroke: var(--color-idle-dim);
+  stroke-linecap: round;
+}
+
+/* Color fades (spec): on start-from-ready and phase change the backdrop and
+   unfilled track fade straight to their new colors. The filled arc (#ring)
+   and dot switch instantly on purpose — no transition for them. */
+.ring-backdrop,
+.ring-track {
+  transition: stroke 1s linear;
+}
+
+/* Filled arc: stroke color set per phase by the renderer. Default stroke
+   width guard matches the renderer constant. */
+#ring {
+  fill: none;
+  stroke: none;
+  stroke-linecap: round;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  pointer-events: none;
+}
+
+.display {
+  position: relative;
+}
+
+#phase-label {
+  margin: 0;
+  font-size: clamp(1.1rem, 4vmin, 1.6rem);
+  font-weight: 600;
+  letter-spacing: 0.02em;
+}
+
+#countdown {
+  margin: 0.25rem 0 0;
+  font-size: clamp(1.6rem, 7vmin, 2.6rem);
+  font-weight: 300;
+  color: var(--text);
+}
+
+.controls {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.75rem;
+  padding: max(1rem, env(safe-area-inset-bottom)) 1rem 1rem;
+}
+
+.controls button {
+  appearance: none;
+  border: 1px solid var(--ghost);
+  background: var(--panel);
+  color: var(--text);
+  font: inherit;
+  font-weight: 600;
+  padding: 0.65rem 1.6rem;
+  border-radius: 999px;
+  min-width: 6.5rem;
+  touch-action: manipulation;
+}
+
+.controls button:active {
+  transform: scale(0.97);
+}
+
+/* Control visibility by session state (spec: idle -> start; running ->
+   pause + reset; paused -> resume + reset). */
+.app[data-session-state='idle'] #pause,
+.app[data-session-state='idle'] #resume,
+.app[data-session-state='idle'] #reset,
+.app[data-session-state='running'] #start,
+.app[data-session-state='running'] #resume,
+.app[data-session-state='paused'] #start,
+.app[data-session-state='paused'] #pause {
+  display: none;
+}
+
+@media (min-width: 700px) {
+  .controls {
+    padding-bottom: 2rem;
+  }
+}
