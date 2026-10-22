@@ -3,6 +3,7 @@
 :root {
   --bg: #101319;
   --panel: #1a1f28;
+  --panel-active: #1a1f28;
   --text: #e8ebf0;
   --muted: #8a8f98;
   --ghost: #2e3440; /* low-contrast control borders */
@@ -25,7 +26,7 @@
    neutrals), every value dimmer than its day counterpart. It applies when the
    user forces it, or when the system prefers dark and the user has not forced
    day. The two blocks must stay identical; a DOM test enforces it. */
-:root[data-theme='night'] {
+:root[data-theme="night"] {
   --bg: #0a0705;
   --panel: #16100c;
   --text: #c4a688;
@@ -46,7 +47,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme='day']) {
+  :root:not([data-theme="day"]) {
     --bg: #0a0705;
     --panel: #16100c;
     --text: #c4a688;
@@ -80,7 +81,22 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
+  font-family:
+    system-ui,
+    -apple-system,
+    "Segoe UI",
+    sans-serif;
+}
+
+button,
+select {
+  cursor: pointer;
+}
+
+button:hover,
+.controls button:hover,
+.preset-control select:hover {
+  background-color: color-mix(in srgb, var(--panel), white 5%);
 }
 
 /* Full-viewport column: shape centered, controls anchored at the bottom. */
@@ -138,7 +154,11 @@ body {
    renderer as --tick-phase), lightened toward the text color so they stand
    out on the dim track. Follows night mode through both variables. */
 .ticks line {
-  stroke: color-mix(in srgb, var(--tick-phase, var(--color-idle)) 75%, var(--text));
+  stroke: color-mix(
+    in srgb,
+    var(--tick-phase, var(--color-idle)) 75%,
+    var(--text)
+  );
   stroke-linecap: round;
 }
 
@@ -213,7 +233,7 @@ body {
   fill: currentColor;
 }
 
-.icon-toggle[aria-pressed='true'] {
+.icon-toggle[aria-pressed="true"] {
   color: var(--color-out);
 }
 
@@ -226,7 +246,7 @@ body {
   visibility: hidden;
 }
 
-.icon-toggle[aria-pressed='true'] .sound-waves {
+.icon-toggle[aria-pressed="true"] .sound-waves {
   visibility: visible;
 }
 
@@ -307,13 +327,13 @@ body {
 
 /* Control visibility by session state (spec: idle -> start; running ->
    pause + reset; paused -> resume + reset). */
-.app[data-session-state='idle'] #pause,
-.app[data-session-state='idle'] #resume,
-.app[data-session-state='idle'] #reset,
-.app[data-session-state='running'] #start,
-.app[data-session-state='running'] #resume,
-.app[data-session-state='paused'] #start,
-.app[data-session-state='paused'] #pause {
+.app[data-session-state="idle"] #pause,
+.app[data-session-state="idle"] #resume,
+.app[data-session-state="idle"] #reset,
+.app[data-session-state="running"] #start,
+.app[data-session-state="running"] #resume,
+.app[data-session-state="paused"] #start,
+.app[data-session-state="paused"] #pause {
   display: none;
 }
 
