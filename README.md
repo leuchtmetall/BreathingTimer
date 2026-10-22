@@ -7,6 +7,7 @@ A guided breathing timer (4-6-7, Box Breathing, and Breath Retention) with tempo
 
 Breath Retention runs rounds of fast breathing (20 to 40 breaths), a breath hold you end with **Breathe in**, and a short recovery breath with a 15 s hold. The hold times of finished rounds are listed below the circle until the next session starts.
 
+[open on GitHub pages](https://leuchtmetall.github.io/BreathingTimer/)
 ## Requirements
 
 - Node.js 20.19 or newer (required by Vite 7)
