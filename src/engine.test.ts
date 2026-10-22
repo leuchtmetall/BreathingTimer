@@ -2,7 +2,11 @@ import { describe, expect, it } from 'vitest';
 import { BreathingEngine, type Clock } from './engine';
 import {
   applyTempo,
+  breathCountChoices,
+  breathRetentionPreset,
+  defaultBreathCount,
   defaultTempo,
+  hasRetention,
   preset467,
   presetBox4,
   presetBox7,
@@ -10,9 +14,13 @@ import {
   tempoChoices,
   tempoFast,
   tempoNormal,
+  tempoLabel,
   tempoSlow,
   type Preset,
 } from './presets';
+
+/** The fixed-cycle presets; Breath Retention has its own tests. */
+const cyclicChoices = presetChoices.filter(({ preset }) => !hasRetention(preset));
 
 /** Clock hand-settable by tests, simulating wall time. */
 class FakeClock implements Clock {
@@ -255,7 +263,7 @@ describe('BreathingEngine', () => {
 });
 
 describe('Box Breathing presets', () => {
-  const boxChoices = presetChoices.slice(1);
+  const boxChoices = cyclicChoices.slice(1);
 
   it.each(boxChoices)('$label defines four equal-duration phases with correct fill', ({ preset }) => {
     expect(preset.phases.map(({ kind }) => kind)).toEqual([
@@ -303,6 +311,7 @@ describe('Box Breathing presets', () => {
       'Box Breathing (4 counts per phase)',
       'Box Breathing (5 counts per phase)',
       'Box Breathing (7 counts per phase)',
+      'Breath Retention',
     ]);
   });
 });
@@ -328,7 +337,7 @@ describe('Tempo', () => {
 
   it('applies to every preset and leaves kind, fill, and proportions untouched', () => {
     expect(durations(applyTempo(presetBox4, tempoSlow))).toEqual([5, 5, 5, 5]);
-    for (const { preset } of presetChoices) {
+    for (const { preset } of cyclicChoices) {
       for (const tempo of tempoChoices) {
         const scaled = applyTempo(preset, tempo);
         expect(scaled.phases.map(({ kind, fill }) => [kind, fill])).toEqual(
@@ -343,7 +352,7 @@ describe('Tempo', () => {
   });
 
   it('records the count length and keeps the ticks flag', () => {
-    for (const { preset } of presetChoices) {
+    for (const { preset } of cyclicChoices) {
       expect(preset.countSeconds).toBe(1);
       expect(preset.ticks).toBe(true);
     }
@@ -462,5 +471,201 @@ describe('cuesBetween', () => {
   it('emits only phase cues when the preset has ticks disabled', () => {
     const engine = new BreathingEngine({ ...preset467, ticks: false });
     expect(engine.cuesBetween(0, 17_000).map((c) => c.type)).toEqual(['phase', 'phase', 'phase']);
+  });
+});
+
+describe('Breath Retention preset', () => {
+  const fullBreath = (preset: Preset) => preset.phases[0]!.seconds + preset.phases[1]!.seconds;
+
+  it('keeps fixed phases and the open hold unscaled by the tempo', () => {
+    for (const tempo of [tempoSlow, tempoFast]) {
+      const scaled = applyTempo(presetBreathRetention(), tempo);
+      const hold = scaled.phases.find(({ fixed }) => fixed)!;
+      const retention = scaled.phases.find(({ role }) => role === 'retention')!;
+      expect(hold.seconds).toBe(15);
+      expect(retention.seconds).toBe(0);
+    }
+  });
+
+  it('builds N breaths in and out, the hold, and the recovery breath', () => {
+    const preset = breathRetentionPreset(30);
+    const breathing = preset.phases.filter(({ role }) => role === 'breath');
+    expect(breathing).toHaveLength(60);
+    expect(breathing.slice(0, 2).map(({ kind }) => kind)).toEqual(['inhale', 'exhale']);
+    expect(preset.phases.slice(60).map(({ kind, role, seconds }) => [kind, role, seconds])).toEqual([
+      ['hold', 'retention', 0],
+      ['inhale', undefined, 1.75],
+      ['hold', undefined, 15],
+      ['exhale', undefined, 1.75],
+    ]);
+    expect(preset.ticks).toBe(false);
+    expect(preset.phases[62]!.ticks).toBe(true);
+    expect(hasRetention(preset)).toBe(true);
+    expect(hasRetention(preset467)).toBe(false);
+  });
+
+  it('offers 20 to 40 breaths in steps of 5, defaulting to 30', () => {
+    expect(breathCountChoices).toEqual([20, 25, 30, 35, 40]);
+    expect(defaultBreathCount).toBe(30);
+    expect(presetChoices.at(-1)!.preset.phases.filter(({ role }) => role === 'breath')).toHaveLength(60);
+  });
+
+  it('scales a full breath to 4.375 / 3.5 / 2.8 s with the existing tempo multipliers', () => {
+    const preset = breathRetentionPreset(30);
+    expect(fullBreath(applyTempo(preset, tempoSlow))).toBeCloseTo(4.375, 10);
+    expect(fullBreath(applyTempo(preset, tempoNormal))).toBeCloseTo(3.5, 10);
+    expect(fullBreath(applyTempo(preset, tempoFast))).toBeCloseTo(2.8, 10);
+  });
+
+  it('labels tempos without the count length for Breath Retention only', () => {
+    expect(tempoChoices.map((tempo) => tempoLabel(tempo, presetBreathRetention()))).toEqual([
+      'Slow',
+      'Normal',
+      'Fast',
+    ]);
+    expect(tempoLabel(tempoSlow, preset467)).toBe('Slow (1.25 s per count)');
+  });
+});
+
+function presetBreathRetention(): Preset {
+  return breathRetentionPreset(defaultBreathCount);
+}
+
+describe('Breath Retention rounds', () => {
+  // Normal tempo, 20 breaths: breathing 0..70 s, then the hold.
+  const BREATHING_MS = 20 * 3_500;
+  const setup = () => {
+    const clock = new FakeClock();
+    const engine = new BreathingEngine(applyTempo(breathRetentionPreset(20), tempoNormal), clock);
+    engine.start();
+    return { clock, engine };
+  };
+
+  it('counts breaths and roles through the breathing part', () => {
+    const { engine } = setup();
+    const first = engine.signalAt(0);
+    expect([first.role, first.kind, first.breath, first.breaths]).toEqual(['breath', 'inhale', 1, 20]);
+    const out = engine.signalAt(2_000);
+    expect([out.kind, out.breath]).toEqual(['exhale', 1]);
+    expect(engine.signalAt(16 * 3_500 + 100).breath).toBe(17);
+    expect(engine.signalAt(BREATHING_MS - 1).breath).toBe(20);
+  });
+
+  it('counts the open hold up past 10 minutes', () => {
+    const { engine } = setup();
+    const hold = engine.signalAt(BREATHING_MS + 11 * 60_000);
+    expect([hold.role, hold.kind, hold.open, hold.breath]).toEqual(['retention', 'hold', true, 0]);
+    expect(hold.phaseElapsed).toBeCloseTo(660, 6);
+    expect(hold.phaseRemaining).toBe(0);
+    expect(hold.fill).toBe(0);
+    expect(hold.completed).toBe(0);
+  });
+
+  it('reports completed equal to cycles for fixed-cycle presets', () => {
+    const engine = new BreathingEngine(preset467, new FakeClock());
+    for (const ms of [0, 17_000, 40_000]) {
+      const s = engine.signalAt(ms);
+      expect(s.completed).toBe(s.cycles);
+      expect([s.role, s.open, s.breath]).toEqual([null, false, 0]);
+    }
+  });
+
+  it('starts the recovery when the hold ends and repeats the round', () => {
+    const { clock, engine } = setup();
+    clock.advance(BREATHING_MS + 92_000);
+    expect(engine.endRetention()).toBe(BREATHING_MS + 92_000);
+    expect(engine.holds).toEqual([92]);
+
+    const recovery = engine.signal()!;
+    expect([recovery.kind, recovery.role, recovery.completed, recovery.cycles]).toEqual(['inhale', null, 1, 0]);
+    expect(recovery.phaseElapsed).toBeCloseTo(0, 10);
+
+    clock.advance(1_750 + 5_000); // 5 s into the 15 s recovery hold
+    const hold = engine.signal()!;
+    expect([hold.kind, hold.open, hold.tickSeconds]).toEqual(['hold', false, 1]);
+    expect(hold.phaseRemaining).toBeCloseTo(10, 6);
+
+    clock.advance(10_000 + 1_750); // recovery breath out ends
+    const next = engine.signal()!;
+    expect([next.role, next.kind, next.breath, next.cycles, next.completed]).toEqual(['breath', 'inhale', 1, 1, 1]);
+  });
+
+  it('ignores endRetention outside the hold or while paused', () => {
+    const { clock, engine } = setup();
+    expect(engine.endRetention()).toBeNull(); // breathing part
+    clock.advance(BREATHING_MS + 1_000);
+    engine.pause();
+    expect(engine.endRetention()).toBeNull();
+    engine.resume();
+    expect(engine.endRetention()).not.toBeNull();
+    expect(engine.endRetention()).toBeNull(); // already in the recovery
+    expect(engine.holds).toEqual([1]);
+    expect(new BreathingEngine(preset467, new FakeClock()).endRetention()).toBeNull();
+  });
+
+  it('does not record a hold that is still running, and reset clears the holds', () => {
+    const { clock, engine } = setup();
+    clock.advance(BREATHING_MS + 30_000);
+    engine.endRetention();
+    clock.advance(1_750 + 15_000 + 1_750 + BREATHING_MS + 40_000); // second hold, 40 s in
+    expect(engine.signal()!.open).toBe(true);
+    expect(engine.holds).toEqual([30]);
+    expect(engine.signal()!.completed).toBe(1);
+    engine.reset();
+    expect(engine.holds).toEqual([]);
+  });
+});
+
+describe('Breath Retention cues', () => {
+  const BREATHING_MS = 20 * 3_500;
+  const setup = () => {
+    const clock = new FakeClock();
+    const engine = new BreathingEngine(applyTempo(breathRetentionPreset(20), tempoNormal), clock);
+    engine.start();
+    return { clock, engine };
+  };
+
+  it('lists one breath cue per breath in and a phase cue for the hold and each recovery phase', () => {
+    const { clock, engine } = setup();
+    clock.advance(BREATHING_MS + 125_000);
+    const holdEnd = engine.endRetention()!;
+    const cues = engine.cuesBetween(0, holdEnd + 18_500);
+    const breaths = cues.filter((c) => c.type === 'breath');
+    expect(breaths.map((c) => c.atMs)).toEqual(Array.from({ length: 20 }, (_, i) => i * 3_500));
+    expect(cues.filter((c) => c.type === 'phase').map((c) => [c.atMs, c.kind])).toEqual([
+      [BREATHING_MS, 'hold'],
+      [holdEnd, 'inhale'],
+      [holdEnd + 1_750, 'hold'],
+      [holdEnd + 16_750, 'exhale'],
+    ]);
+    expect(cues.filter((c) => c.type === 'hold-minute').map((c) => [c.atMs, c.minute])).toEqual([
+      [BREATHING_MS + 60_000, 1],
+      [BREATHING_MS + 120_000, 2],
+    ]);
+    // Recovery hold ticks once per real second, 14 inside the 15 s hold.
+    const ticks = cues.filter((c) => c.type === 'tick');
+    expect(ticks.map((c) => c.atMs - holdEnd - 1_750)).toEqual(Array.from({ length: 14 }, (_, i) => (i + 1) * 1_000));
+    expect(cues.map((c) => c.atMs)).toEqual([...cues.map((c) => c.atMs)].sort((a, b) => a - b));
+  });
+
+  it('lists full hold minutes up to the window end while the hold is running', () => {
+    const { engine } = setup();
+    const cues = engine.cuesBetween(BREATHING_MS + 58_500, BREATHING_MS + 181_000);
+    expect(cues.map((c) => [c.type, c.minute])).toEqual([
+      ['hold-minute', 1],
+      ['hold-minute', 2],
+      ['hold-minute', 3],
+    ]);
+    expect(engine.cuesBetween(BREATHING_MS, BREATHING_MS + 59_999).filter((c) => c.type === 'hold-minute')).toEqual([]);
+  });
+
+  it('starts the queue after endRetention with the recovery inhale cue', () => {
+    const { clock, engine } = setup();
+    clock.advance(BREATHING_MS + 59_500);
+    const holdEnd = engine.endRetention()!;
+    expect(holdEnd).toBe(engine.sessionElapsedMs());
+    const cues = engine.cuesBetween(holdEnd, holdEnd + 5_000);
+    expect(cues[0]).toEqual({ atMs: holdEnd, type: 'phase', kind: 'inhale' });
+    expect(cues.some((c) => c.type === 'hold-minute')).toBe(false);
   });
 });

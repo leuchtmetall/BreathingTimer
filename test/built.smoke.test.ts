@@ -74,6 +74,7 @@ function sourcesMtime(): number {
     'presets.ts',
     'theme.ts',
     'sound.ts',
+    'debug.ts',
     'style.css',
   ]) {
     latest = Math.max(latest, statSync(join(base, f)).mtimeMs);
@@ -122,27 +123,59 @@ describe('built single-file app (dist/index.html)', () => {
     expect(label()).toBe('Breathe out');
     expect(Number(radius())).toBeLessThan(heldRadius);
 
-    // pause freezes both label and shape
-    (document.querySelector('#pause')! as HTMLButtonElement).click();
-    expect(state()).toBe('paused');
-    const pausedLabel = label();
-    const pausedRadius = radius();
-    app.advance(60_000); // wall time passes while frozen
-    expect(label()).toBe(pausedLabel);
-    expect(radius()).toBe(pausedRadius);
+    // Pause and resume are debug-only: not in the shipped page at all.
+    expect(document.querySelector('#pause')).toBeNull();
+    expect(document.querySelector('#resume')).toBeNull();
+    const reset = document.querySelector<HTMLButtonElement>('#reset')!;
+    expect(reset.textContent).toBe('Reset');
 
-    // resume continues the exhale
-    (document.querySelector('#resume')! as HTMLButtonElement).click();
-    app.advance(500);
-    expect(state()).toBe('running');
-    expect(Number(radius())).toBeLessThanOrEqual(Number(pausedRadius));
-
-    // loop: pausing freezes session time, so ~6.1s after resume lands just
-    // pausing freezes session time, so ~6.1s after resume lands just
-    // past the 17s cycle boundary -> second cycle, inhale again
-    app.advance(6_100);
+    // loop: just past the 17s cycle boundary -> second cycle, inhale again,
+    // and the reset control now reads Done
+    app.advance(4_600);
     expect(label()).toBe('Breathe in');
+    expect(reset.textContent).toBe('Done');
 
+    // Done: the circle goes idle, the stats move below it
+    reset.click();
+    expect(state()).toBe('idle');
+    expect(label()).toBe('Ready');
+    expect(document.querySelector('#session-stats')!.textContent).toBe('');
+    expect(document.querySelector('#summary-stats')!.textContent).toBe('Cycles: 1 · Time: 00:17');
+
+    expect(app.errors).toEqual([]);
+  });
+
+  it('runs a Breath Retention round with the hold ended by Breathe in', () => {
+    const app = loadBuiltApp();
+    const { document } = app.dom.window;
+    const select = (id: string, value: string) => {
+      const el = document.querySelector<HTMLSelectElement>(`#${id}`)!;
+      el.value = value;
+      el.dispatchEvent(new app.dom.window.Event('change', { bubbles: true }));
+    };
+    const countdown = () => document.querySelector('#countdown')!.textContent;
+    const role = () => document.querySelector<HTMLElement>('#app')!.dataset.role;
+
+    app.stepFrame();
+    select('preset-select', 'breath-retention');
+    select('breaths-select', '20');
+    (document.querySelector('#start')! as HTMLButtonElement).click();
+    app.advance(0);
+    expect(countdown()).toBe('1/20');
+
+    // 20 breaths at 3.5 s, frame by frame, then 45 s into the hold
+    for (let ms = 0; ms < 70_000; ms += 100) app.advance(100);
+    app.advance(45_000);
+    expect(role()).toBe('retention');
+    expect(countdown()).toBe('00:45');
+
+    (document.querySelector('#breathe-in')! as HTMLButtonElement).click();
+    app.advance(16);
+    expect(role()).toBe('');
+    expect(Array.from(document.querySelectorAll('#rounds li'), (li) => li.textContent)).toEqual([
+      'Round 1 00:45',
+    ]);
+    expect(document.querySelector('#reset')!.textContent).toBe('Done');
     expect(app.errors).toEqual([]);
   });
 

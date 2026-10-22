@@ -50,6 +50,11 @@
         </div>
       </section>
 
+      <section class="summary" aria-label="Session results">
+        <p id="summary-stats"></p>
+        <ol id="rounds" aria-live="polite"></ol>
+      </section>
+
       <div class="controls" role="group" aria-label="Session controls">
         <label class="preset-control" for="preset-select">
           <span>Breathing pattern</span>
@@ -59,7 +64,12 @@
           <span>Tempo</span>
           <select id="tempo-select"></select>
         </label>
+        <label class="preset-control breath-retention-only" for="breaths-select">
+          <span>Breaths</span>
+          <select id="breaths-select"></select>
+        </label>
         <button id="start" type="button">Start</button>
+        <button id="breathe-in" type="button">Breathe in</button>
         <button id="pause" type="button">Pause</button>
         <button id="resume" type="button">Resume</button>
         <button id="reset" type="button">Reset</button>

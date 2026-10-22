@@ -20,6 +20,13 @@
   --color-idle: #6b7280; /* empty-lung hold / idle */
   --color-idle-dim: #33373e;
   --color-idle-dark: #1b1e23;
+  /* Breath Retention: orange breathing part, light turquoise hold. */
+  --color-breath: #f28c28;
+  --color-breath-dim: #6b3c12;
+  --color-breath-dark: #3a210b;
+  --color-retention: #7fe0d8;
+  --color-retention-dim: #2c605b;
+  --color-retention-dark: #163330;
 }
 
 /* Night palette: no blue anywhere (deep red inhale, amber exhale, warm
@@ -29,6 +36,7 @@
 :root[data-theme="night"] {
   --bg: #0a0705;
   --panel: #16100c;
+  --panel-active: #16100c;
   --text: #c4a688;
   --muted: #7d6650;
   --ghost: #3b2d22;
@@ -44,12 +52,21 @@
   --color-idle: #5c5148;
   --color-idle-dim: #2f2822;
   --color-idle-dark: #17130f;
+  /* Red-orange, clearly apart from the amber exhale. The turquoise hold is
+     the one hue allowed outside the warm range (spec exception). */
+  --color-breath: #a6431c;
+  --color-breath-dim: #4a1e0d;
+  --color-breath-dark: #271007;
+  --color-retention: #2e8a82;
+  --color-retention-dim: #164541;
+  --color-retention-dark: #0b2321;
 }
 
 @media (prefers-color-scheme: dark) {
   :root:not([data-theme="day"]) {
     --bg: #0a0705;
     --panel: #16100c;
+    --panel-active: #16100c;
     --text: #c4a688;
     --muted: #7d6650;
     --ghost: #3b2d22;
@@ -65,6 +82,12 @@
     --color-idle: #5c5148;
     --color-idle-dim: #2f2822;
     --color-idle-dark: #17130f;
+    --color-breath: #a6431c;
+    --color-breath-dim: #4a1e0d;
+    --color-breath-dark: #271007;
+    --color-retention: #2e8a82;
+    --color-retention-dim: #164541;
+    --color-retention-dark: #0b2321;
   }
 }
 
@@ -272,6 +295,38 @@ button:hover,
   letter-spacing: 0.02em;
 }
 
+/* Below the circle: stats after the session ends, and finished rounds. */
+.summary {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0 1rem;
+  color: var(--muted);
+  font-size: clamp(0.8rem, 3vmin, 1rem);
+  font-variant-numeric: tabular-nums;
+  letter-spacing: 0.02em;
+}
+
+#summary-stats {
+  margin: 0;
+}
+
+#summary-stats:empty {
+  display: none;
+}
+
+#rounds {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 0.15rem 1.25rem;
+  color: var(--text);
+}
+
 .controls {
   display: flex;
   flex-wrap: wrap;
@@ -326,7 +381,8 @@ button:hover,
 }
 
 /* Control visibility by session state (spec: idle -> start; running ->
-   pause + reset; paused -> resume + reset). */
+   reset, plus Breathe in during the Breath Retention hold; pause and resume
+   exist only in debug mode: running -> + pause, paused -> resume + reset). */
 .app[data-session-state="idle"] #pause,
 .app[data-session-state="idle"] #resume,
 .app[data-session-state="idle"] #reset,
@@ -334,6 +390,19 @@ button:hover,
 .app[data-session-state="running"] #resume,
 .app[data-session-state="paused"] #start,
 .app[data-session-state="paused"] #pause {
+  display: none;
+}
+
+#breathe-in {
+  display: none;
+}
+
+.app[data-session-state="running"][data-role="retention"] #breathe-in {
+  display: inline-block;
+}
+
+/* The breath count only applies to Breath Retention. */
+.app:not([data-preset="breath-retention"]) .breath-retention-only {
   display: none;
 }
 

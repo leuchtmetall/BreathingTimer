@@ -19,12 +19,13 @@ function declarations(selectorPattern: string): Map<string, string> {
 }
 
 const day = declarations(':root');
-const nightOverride = declarations(":root\\[data-theme='night'\\]");
+// Either quote style, so a CSS reformat cannot hide the night blocks.
+const nightOverride = declarations(":root\\[data-theme=[\"']night[\"']\\]");
 const nightSystem = declarations(
-  "@media \\(prefers-color-scheme: dark\\)\\s*\\{\\s*:root:not\\(\\[data-theme='day'\\]\\)",
+  "@media \\(prefers-color-scheme: dark\\)\\s*\\{\\s*:root:not\\(\\[data-theme=[\"']day[\"']\\]\\)",
 );
 
-const HUES = ['in', 'out', 'hold-full', 'idle'] as const;
+const HUES = ['in', 'out', 'hold-full', 'idle', 'breath', 'retention'] as const;
 
 function rgb(hex: string): [number, number, number] {
   expect(hex).toMatch(/^#[0-9a-f]{6}$/i);
@@ -68,9 +69,32 @@ describe('Night mode palette (style.css)', () => {
     // Warm ordering (red >= green >= blue) keeps every hue between red and
     // yellow, or neutral; it excludes all blues, cyans, and violets.
     for (const [name, value] of nightOverride) {
+      if (name.startsWith('--color-retention')) continue; // the turquoise exception
       const [r, g, b] = rgb(value);
       expect(r >= g && g >= b, `${name} ${value} is not warm`).toBe(true);
     }
+  });
+
+  it('keeps the Breath Retention hold turquoise in night mode', () => {
+    for (const suffix of ['', '-dim', '-dark']) {
+      const [r, g, b] = rgb(nightOverride.get(`--color-retention${suffix}`)!);
+      // Turquoise: green and blue close together, both well above red.
+      expect(g > r * 1.5 && b > r * 1.5 && Math.abs(g - b) <= g * 0.15, suffix).toBe(true);
+    }
+  });
+
+  it('keeps the night breathing orange clearly apart from the amber exhale', () => {
+    const hue = (hex: string) => {
+      const [r, g, b] = rgb(hex).map((c) => c / 255) as [number, number, number];
+      const max = Math.max(r, g, b);
+      const min = Math.min(r, g, b);
+      // Warm colors only (red is the maximum), so one branch of the hue formula suffices.
+      expect(max).toBe(r);
+      return (60 * ((g - b) / (max - min)) + 360) % 360;
+    };
+    const breath = hue(nightOverride.get('--color-breath')!);
+    expect(hue(nightOverride.get('--color-out')!) - breath).toBeGreaterThanOrEqual(12);
+    expect(breath - hue(nightOverride.get('--color-in')!)).toBeGreaterThanOrEqual(8);
   });
 
   it('is dimmer than day mode for every variable', () => {

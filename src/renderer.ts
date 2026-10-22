@@ -1,5 +1,5 @@
 import type { SessionSignal } from './engine';
-import type { PhaseKind, Preset } from './presets';
+import { hasRetention, type PhaseKind, type Preset } from './presets';
 
 /**
  * Geometry on the square SVG view scale (see design.md). One breathing
@@ -24,6 +24,8 @@ const TICK_STROKE = 0.6;
 const TICK_EPSILON = 1e-6;
 /** Phases shorter than this show no seconds (remaining time = the ring). */
 const COUNTDOWN_MIN_SECONDS = 10;
+/** One slow grow-and-shrink of the Breath Retention hold, unrelated to breathing. */
+const RETENTION_PULSE_SECONDS = 20;
 
 /**
  * Colors by phase and lung state (spec: red while breathing in, blue while
@@ -38,6 +40,8 @@ const DIM_VARIANTS: Record<string, string> = {
   'var(--color-out)': 'var(--color-out-dim)',
   'var(--color-hold-full)': 'var(--color-hold-full-dim)',
   'var(--color-idle)': 'var(--color-idle-dim)',
+  'var(--color-breath)': 'var(--color-breath-dim)',
+  'var(--color-retention)': 'var(--color-retention-dim)',
 };
 
 const DARK_VARIANTS: Record<string, string> = {
@@ -45,10 +49,14 @@ const DARK_VARIANTS: Record<string, string> = {
   'var(--color-out)': 'var(--color-out-dark)',
   'var(--color-hold-full)': 'var(--color-hold-full-dark)',
   'var(--color-idle)': 'var(--color-idle-dark)',
+  'var(--color-breath)': 'var(--color-breath-dark)',
+  'var(--color-retention)': 'var(--color-retention-dark)',
 };
 
 /** Bright color of the filled arc for a phase (with its lung state). */
-function arcColor(kind: PhaseKind, fill: number): string {
+function arcColor({ kind, fill, role }: SessionSignal): string {
+  if (role === 'breath') return 'var(--color-breath)';
+  if (role === 'retention') return 'var(--color-retention)';
   switch (kind) {
     case 'inhale':
       return 'var(--color-in)';
@@ -73,6 +81,9 @@ export interface RenderTargets {
   phaseLabel: HTMLElement;
   countdown: HTMLElement;
   sessionStats: HTMLElement;
+  /** Below the circle: the stats after the session ends, and finished rounds. */
+  summaryStats: HTMLElement;
+  rounds: HTMLOListElement;
 }
 
 /**
@@ -83,9 +94,10 @@ export interface RenderTargets {
 export class Renderer {
   private readonly targets: RenderTargets;
   private ringKey = '';
-  /** Active preset's count length (s), or null when it shows no ticks. */
-  private countSeconds: number | null = null;
+  /** Stats noun: Breath Retention counts rounds, the other presets cycles. */
+  private statsNoun = 'Cycles';
   private ticksKey = '';
+  private roundsKey = '';
   /** Last running frame's phase instance and tick index, for the flash. */
   private tickPhase = '';
   private tickIndex = 0;
@@ -106,9 +118,34 @@ export class Renderer {
     this.setRing(0, RING_RADIUS_BASE);
   }
 
-  /** Sets the tempo-resolved preset whose counts the tick marks follow. */
+  /** Sets the preset whose stats the display shows (tick marks follow the signal). */
   usePreset(preset: Preset): void {
-    this.countSeconds = preset.ticks ? preset.countSeconds : null;
+    this.statsNoun = hasRetention(preset) ? 'Rounds' : 'Cycles';
+  }
+
+  /** Finished rounds below the circle (`Round 1 01:32`), rebuilt only when one is added. */
+  renderRounds(holds: readonly number[]): void {
+    const key = holds.join('/');
+    if (this.roundsKey === key) return;
+    this.roundsKey = key;
+    this.targets.rounds.replaceChildren(
+      ...holds.map((seconds, i) => {
+        const item = document.createElement('li');
+        item.textContent = `Round ${i + 1} ${formatSessionTime(seconds)}`;
+        return item;
+      }),
+    );
+  }
+
+  /** Session ended: the last stats move below the circle (the rounds stay). */
+  showSummary(): void {
+    this.targets.summaryStats.textContent = this.targets.sessionStats.textContent;
+  }
+
+  /** New session: nothing below the circle. */
+  clearSummary(): void {
+    this.targets.summaryStats.textContent = '';
+    this.renderRounds([]);
   }
 
   /** Idle display: neutral colors, all layers at base radius, no dot/countdown. */
@@ -143,15 +180,22 @@ export class Renderer {
   }
 
   private render(signal: SessionSignal): void {
-    const main = arcColor(signal.kind, signal.fill);
+    const main = arcColor(signal);
     const duration = signal.phaseElapsed + signal.phaseRemaining;
-    const progress = duration > 0 ? clamp01(signal.phaseElapsed / duration) : 0;
+    // Breath Retention's breathing part and hold draw the whole ring: no
+    // progress, dot, or ticks.
+    const full = signal.role !== null;
+    const progress = full ? 1 : duration > 0 ? clamp01(signal.phaseElapsed / duration) : 0;
 
     // One circle both breathes and fills:
-    //   radius <- lung fill (eased, subtle, decelerating at both ends)
+    //   radius <- lung fill (eased, subtle, decelerating at both ends), or
+    //             the slow hold pulse (already smooth: a cosine)
     //   arc    <- phase progress (linear: remaining time must stay readable)
-    const easedFill = easeInOutQuadratic(clamp01(signal.fill));
-    const radius = RING_RADIUS_BASE + easedFill * (RING_RADIUS_FULL - RING_RADIUS_BASE);
+    const level =
+      signal.role === 'retention'
+        ? (1 - Math.cos((2 * Math.PI * signal.phaseElapsed) / RETENTION_PULSE_SECONDS)) / 2
+        : easeInOutQuadratic(clamp01(signal.fill));
+    const radius = RING_RADIUS_BASE + level * (RING_RADIUS_FULL - RING_RADIUS_BASE);
     this.breathe(radius);
     this.setRing(progress, radius);
     this.targets.ring.style.stroke = main;
@@ -159,7 +203,7 @@ export class Renderer {
     // color on every start/phase change — no intermediate memory stage.
     this.targets.track.style.stroke = dimmed(main);
     this.targets.ringBackdrop.style.stroke = DARK_VARIANTS[main];
-    this.setTicks(this.countSeconds === null ? 0 : Math.round(duration / this.countSeconds), radius);
+    this.setTicks(signal.tickSeconds === null ? 0 : Math.round(duration / signal.tickSeconds), radius);
     // Ticks take the arc's color instantly, like the arc and dot.
     this.targets.ticks.style.setProperty('--tick-phase', main);
 
@@ -173,19 +217,15 @@ export class Renderer {
       'cy',
       (CENTER + radius * Math.sin(angle)).toFixed(2),
     );
-    this.targets.dot.setAttribute('visibility', 'visible');
+    this.targets.dot.setAttribute('visibility', full ? 'hidden' : 'visible');
     this.targets.dot.style.fill = main;
 
-    // Seconds only for phases long enough (spec: hidden for short in/out
-    // and 4-7-8-style holds; remaining time reads from the ring instead).
-    const seconds =
-      duration >= COUNTDOWN_MIN_SECONDS ? Math.ceil(signal.phaseRemaining) : 0;
-    const text = seconds > 0 ? String(seconds) : '';
+    const text = countdownText(signal, duration);
     if (this.targets.countdown.textContent !== text) {
       this.targets.countdown.textContent = text;
     }
 
-    const stats = `Cycles: ${signal.cycles} · Time: ${formatSessionTime(signal.sessionElapsedSeconds)}`;
+    const stats = `${this.statsNoun}: ${signal.completed} · Time: ${formatSessionTime(signal.sessionElapsedSeconds)}`;
     if (this.targets.sessionStats.textContent !== stats) {
       this.targets.sessionStats.textContent = stats;
     }
@@ -247,9 +287,9 @@ export class Renderer {
    * saw; a new phase instance (including the first frame) only records it.
    */
   private detectTick(signal: SessionSignal): void {
-    if (this.countSeconds === null) return;
+    if (signal.tickSeconds === null) return;
     const phase = `${signal.cycles}/${signal.phaseIndex}`;
-    const index = Math.floor(signal.phaseElapsed / this.countSeconds + TICK_EPSILON);
+    const index = Math.floor(signal.phaseElapsed / signal.tickSeconds + TICK_EPSILON);
     if (phase === this.tickPhase && index > this.tickIndex && index >= 1) this.setFlash(true);
     this.tickPhase = phase;
     this.tickIndex = index;
@@ -288,6 +328,18 @@ function formatSessionTime(totalSeconds: number): string {
     .padStart(2, '0');
   const seconds = (elapsed % 60).toString().padStart(2, '0');
   return `${minutes}:${seconds}`;
+}
+
+/**
+ * In-circle number: the breath (`17/30`) while breathing, the hold time
+ * counting up, or the seconds remaining in phases long enough (spec: hidden
+ * for short in/out and 4-7-8-style holds; the ring shows remaining time).
+ */
+function countdownText(signal: SessionSignal, duration: number): string {
+  if (signal.role === 'breath') return `${signal.breath}/${signal.breaths}`;
+  if (signal.role === 'retention') return formatSessionTime(signal.phaseElapsed);
+  const seconds = duration >= COUNTDOWN_MIN_SECONDS ? Math.ceil(signal.phaseRemaining) : 0;
+  return seconds > 0 ? String(seconds) : '';
 }
 
 /** Dimmed shade of a bright phase color (for the unfilled track). */

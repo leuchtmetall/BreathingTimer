@@ -3,7 +3,9 @@
 
 # Breathing Timer
 
-A guided breathing timer (4-6-7 and Box Breathing) with tempo control, night mode, count tick marks, and optional sound. The production build is a single self-contained `index.html` that works offline, straight from a local file.
+A guided breathing timer (4-6-7, Box Breathing, and Breath Retention) with tempo control, night mode, count tick marks, and optional sound. The production build is a single self-contained `index.html` that works offline, straight from a local file.
+
+Breath Retention runs rounds of fast breathing (20 to 40 breaths), a breath hold you end with **Breathe in**, and a short recovery breath with a 15 s hold. The hold times of finished rounds are listed below the circle until the next session starts.
 
 ## Requirements
 
@@ -56,10 +58,11 @@ The DOM tests run in jsdom, which has no Web Audio, so sound is tested against a
 ## Project layout
 
 - `index.html` — page markup
-- `src/presets.ts` — breathing presets and tempos
+- `src/presets.ts` — breathing presets (including Breath Retention) and tempos
 - `src/engine.ts` — session state machine, phase timing, and sound cue times
 - `src/renderer.ts` — draws the ring, tick marks, and labels from the engine's signal
 - `src/sound.ts` — synthesized sounds queued ahead on the audio clock
 - `src/theme.ts` — night mode activation
 - `src/main.ts` — wires controls, the frame loop, and sound together
+- `src/debug.ts` — developer switch: set `DEBUG = true` to get Pause and Resume back (off in the shipped build)
 - `test/` — smoke test for the built single-file app

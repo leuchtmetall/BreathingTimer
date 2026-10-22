@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { BreathingEngine, type Clock } from './engine';
 import {
   applyTempo,
+  breathRetentionPreset,
   preset467,
   presetBox4,
   presetBox7,
@@ -16,6 +17,10 @@ import {
   type Preset,
 } from './presets';
 import { Renderer, type RenderTargets } from './renderer';
+
+// The wiring tests below pause and resume, which only debug mode offers;
+// src/controls.dom.test.ts covers normal mode.
+vi.mock('./debug', () => ({ DEBUG: true }));
 
 class FakeClock implements Clock {
   t = 0;
@@ -43,6 +48,8 @@ function targets(): RenderTargets {
     phaseLabel: document.querySelector<HTMLElement>('#phase-label')!,
     countdown: document.querySelector<HTMLElement>('#countdown')!,
     sessionStats: document.querySelector<HTMLElement>('#session-stats')!,
+    summaryStats: document.querySelector<HTMLElement>('#summary-stats')!,
+    rounds: document.querySelector<HTMLOListElement>('#rounds')!,
   };
 }
 
@@ -492,10 +499,12 @@ describe('Tick marks and flash (DOM)', () => {
     expect(tickLines()).toHaveLength(0);
     run(1_500);
     expect(flashing()).toBe(false);
-    renderer.usePreset(preset467);
-    run(5_500);
-    expect(tickLines()).toHaveLength(6);
     renderer.renderIdle();
+    // Tick marks follow the engine's preset, which the app always shares with the renderer.
+    const withTicks = setup(preset467);
+    withTicks.run(5_500);
+    expect(tickLines()).toHaveLength(6);
+    withTicks.renderer.renderIdle();
     expect(tickLines()).toHaveLength(0);
   });
 
@@ -884,3 +893,112 @@ function backdropWidth(): string | null {
 function trackWidth(): string | null {
   return document.querySelector<SVGCircleElement>('.ring-track')!.getAttribute('stroke-width');
 }
+
+describe('Breath Retention display (DOM)', () => {
+  // Normal tempo, 20 breaths: breathing 0..70 s, then the hold.
+  const BREATHING_MS = 70_000;
+  const setup = () => {
+    const clock = new FakeClock();
+    const preset = applyTempo(breathRetentionPreset(20), tempoNormal);
+    const engine = new BreathingEngine(preset, clock);
+    const renderer = new Renderer(targets());
+    renderer.usePreset(preset);
+    renderer.clearSummary();
+    engine.start();
+    return { clock, engine, renderer, run: (ms: number) => renderer.renderRunning(engine.signalAt(ms)) };
+  };
+  const text = (selector: string) => document.querySelector(selector)!.textContent;
+  const tickCount = () => document.querySelectorAll('#ticks line').length;
+
+  it('draws a full orange ring that breathes, with no dot or ticks, and the breath number', () => {
+    const { run } = setup();
+    run(16 * 3_500 + 1_000); // breath 17, breathing in
+    expect(ringProgress()).toBeCloseTo(1, 3);
+    expect(ringStroke()).toBe('var(--color-breath)');
+    expect(trackStroke()).toBe('var(--color-breath-dim)');
+    expect(backdropStroke()).toBe('var(--color-breath-dark)');
+    expect(dotEl().getAttribute('visibility')).toBe('hidden');
+    expect(tickCount()).toBe(0);
+    expect(text('#countdown')).toBe('17/20');
+    expect(text('#phase-label')).toBe('Breathe in');
+    const grown = ringRadius();
+    run(16 * 3_500 + 1_750 + 1_700); // end of that breath out
+    expect(ringRadius()).toBeLessThan(grown);
+    expect(text('#countdown')).toBe('17/20');
+  });
+
+  it('draws a full turquoise ring with a 20 s pulse and the hold time counting up', () => {
+    const { engine, renderer, run } = setup();
+    const base = (() => {
+      run(BREATHING_MS);
+      return ringRadius();
+    })();
+    expect(ringStroke()).toBe('var(--color-retention)');
+    expect(dotEl().getAttribute('visibility')).toBe('hidden');
+    expect(tickCount()).toBe(0);
+    expect(text('#phase-label')).toBe('Hold');
+    run(BREATHING_MS + 10_000);
+    expect(ringRadius()).toBeCloseTo(48, 1); // full at half the pulse
+    run(BREATHING_MS + 20_000);
+    expect(ringRadius()).toBeCloseTo(base, 1); // back at base after one pulse
+    expect(base).toBeCloseTo(40, 1);
+    run(BREATHING_MS + 92_000);
+    expect(text('#countdown')).toBe('01:32');
+    // Paused: the pulse freezes with the signal.
+    const frozen = engine.signalAt(BREATHING_MS + 3_000);
+    renderer.renderPaused(frozen);
+    const r = ringRadius();
+    renderer.renderPaused(frozen);
+    expect(ringRadius()).toBe(r);
+  });
+
+  it('renders the recovery like a regular hold with 15 ticks and the seconds remaining', () => {
+    const { clock, engine, renderer } = setup();
+    clock.t = BREATHING_MS + 30_000;
+    engine.endRetention();
+    clock.t += 1_750 + 5_000;
+    renderer.renderRunning(engine.signal()!);
+    expect(ringStroke()).toBe('var(--color-hold-full)');
+    expect(ringProgress()).toBeCloseTo(1 / 3, 2);
+    expect(dotEl().getAttribute('visibility')).toBe('visible');
+    expect(tickCount()).toBe(15);
+    expect(text('#countdown')).toBe('10');
+    expect(text('#session-stats')).toBe('Rounds: 1 · Time: 01:46');
+  });
+
+  it('counts rounds in the stats from the first moment of the recovery', () => {
+    const { clock, engine, renderer } = setup();
+    renderer.renderRunning(engine.signal()!);
+    expect(text('#session-stats')).toBe('Rounds: 0 · Time: 00:00');
+    clock.t = BREATHING_MS + 10_000;
+    engine.endRetention();
+    renderer.renderRunning(engine.signal()!);
+    expect(text('#session-stats')).toBe('Rounds: 1 · Time: 01:20');
+  });
+
+  it('lists finished rounds below the circle and keeps them with the stats after the session', () => {
+    const { clock, engine, renderer } = setup();
+    const rounds = () => Array.from(document.querySelectorAll('#rounds li'), (li) => li.textContent);
+    clock.t = BREATHING_MS + 92_000;
+    engine.endRetention();
+    renderer.renderRounds(engine.holds);
+    expect(rounds()).toEqual(['Round 1 01:32']);
+    clock.t += 18_500 + BREATHING_MS + 125_000;
+    engine.endRetention();
+    renderer.renderRunning(engine.signal()!);
+    renderer.renderRounds(engine.holds);
+    expect(rounds()).toEqual(['Round 1 01:32', 'Round 2 02:05']);
+
+    renderer.showSummary();
+    engine.reset();
+    renderer.renderIdle();
+    expect(text('#session-stats')).toBe('');
+    expect(text('#summary-stats')).toBe('Rounds: 2 · Time: 06:15');
+    expect(rounds()).toHaveLength(2);
+    expect(document.querySelector('#rounds')!.closest('.display')).toBeNull();
+
+    renderer.clearSummary();
+    expect(text('#summary-stats')).toBe('');
+    expect(rounds()).toEqual([]);
+  });
+});

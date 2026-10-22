@@ -1,6 +1,6 @@
 import { describe, expect, it } from 'vitest';
 import { BreathingEngine, type Clock } from './engine';
-import { applyTempo, preset467, tempoNormal } from './presets';
+import { applyTempo, breathRetentionPreset, preset467, tempoNormal } from './presets';
 import {
   HORIZON_MS,
   SoundScheduler,
@@ -201,5 +201,67 @@ describe('SoundScheduler', () => {
       scheduler.recover();
       scheduler.stop();
     }).not.toThrow();
+  });
+});
+
+describe('SoundScheduler with Breath Retention', () => {
+  // Normal tempo, 20 breaths: breathing 0..70 s, then the hold.
+  const BREATHING_MS = 70_000;
+  const setup = () => {
+    const ctx = new FakeAudioContext();
+    const clock = new FakeClock();
+    const engine = new BreathingEngine(applyTempo(breathRetentionPreset(20), tempoNormal), clock);
+    const scheduler = new SoundScheduler(() => ctx);
+    scheduler.unlock();
+    scheduler.setEnabled(true);
+    engine.start();
+    return { ctx, clock, engine, scheduler };
+  };
+  const MELODY = [440, 550, 660];
+
+  it('plays only the rising melody at each full minute of the hold', () => {
+    const { ctx, clock, engine, scheduler } = setup();
+    clock.t = BREATHING_MS + 500;
+    scheduler.sync(engine);
+    // Queued from 70.5 s; the 3-minute horizon covers the first hold minutes.
+    const sounds = ctx.oscillators.filter((o) => o.startAt! - 100 < 125).map((o) => o.frequency.value);
+    expect(sounds).toEqual([...MELODY, ...MELODY]);
+  });
+
+  it('spaces the melody notes rising from the minute mark', () => {
+    const { ctx, clock, engine, scheduler } = setup();
+    clock.t = BREATHING_MS + 59_000;
+    scheduler.sync(engine);
+    const melody = ctx.oscillators.slice(0, 3);
+    expect(melody.map((o) => o.frequency.value)).toEqual(MELODY);
+    expect(melody.map((o) => Math.round((o.startAt! - 100) * 1000))).toEqual([1_000, 1_200, 1_400]);
+  });
+
+  it('uses the soft breath voice once per breath in', () => {
+    const { ctx, engine, scheduler } = setup();
+    scheduler.sync(engine);
+    const breathing = ctx.oscillators.filter((o) => o.startAt! - 100 < 70);
+    expect(breathing).toHaveLength(20);
+    expect(new Set(breathing.map((o) => o.frequency.value))).toEqual(new Set([880]));
+    const peak = ctx.gains[0]!.peak;
+    expect(peak).toBeGreaterThan(0);
+    expect(peak).toBeLessThan(0.08);
+  });
+
+  it('cancels queued hold sounds past the hold end and queues the recovery tone at once', () => {
+    const { ctx, clock, engine, scheduler } = setup();
+    clock.t = BREATHING_MS + 59_500;
+    scheduler.sync(engine);
+    const queued = [...ctx.oscillators];
+    expect(queued[0]!.frequency.value).toBe(440); // the melody at 60 s
+
+    const holdEnd = engine.endRetention()!;
+    clock.t += 0.003; // real time moves on between the click and the queueing
+    scheduler.restartAt(engine, holdEnd);
+    expect(queued.every((o) => o.stops.includes(0))).toBe(true);
+    const fresh = ctx.oscillators.slice(queued.length);
+    expect(fresh[0]!.frequency.value).toBe(660); // recovery breath in
+    expect(fresh[0]!.startAt!).toBeLessThanOrEqual(ctx.currentTime);
+    expect(fresh.filter((o) => MELODY.includes(o.frequency.value) && o.startAt! - 100 < 0.5)).toHaveLength(1);
   });
 });
