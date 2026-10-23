@@ -145,6 +145,31 @@ describe('built single-file app (dist/index.html)', () => {
     expect(app.errors).toEqual([]);
   });
 
+  it('steps to Box Breathing with the next button and runs it at 3 s per phase', () => {
+    const app = loadBuiltApp();
+    const { document } = app.dom.window;
+    const label = () => document.querySelector('#phase-label')!.textContent;
+    const tempo = document.querySelector<HTMLSelectElement>('#tempo-select')!;
+
+    app.stepFrame();
+    (document.querySelector('#preset-next')! as HTMLButtonElement).click();
+    expect(document.querySelector<HTMLSelectElement>('#preset-select')!.value).toBe('box');
+    expect(tempo.value).toBe('5');
+    tempo.value = '3';
+    tempo.dispatchEvent(new app.dom.window.Event('change', { bubbles: true }));
+
+    (document.querySelector('#start')! as HTMLButtonElement).click();
+    expect(document.querySelector<HTMLButtonElement>('#preset-next')!.disabled).toBe(true);
+    app.advance(0);
+    for (let ms = 0; ms < 2_900; ms += 100) app.advance(100);
+    expect(label()).toBe('Breathe in');
+    app.advance(200);
+    expect(label()).toBe('Hold');
+    expect(document.querySelectorAll('#ticks line')).toHaveLength(3);
+
+    expect(app.errors).toEqual([]);
+  });
+
   it('runs a Breath Retention round with the hold ended by Breathe in', () => {
     const app = loadBuiltApp();
     const { document } = app.dom.window;

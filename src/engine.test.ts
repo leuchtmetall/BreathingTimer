@@ -2,25 +2,28 @@ import { describe, expect, it } from 'vitest';
 import { BreathingEngine, type Clock } from './engine';
 import {
   applyTempo,
+  boxPhaseChoices,
+  boxPreset,
   breathCountChoices,
   breathRetentionPreset,
   defaultBreathCount,
+  defaultBoxPhase,
   defaultTempo,
   hasRetention,
   preset467,
-  presetBox4,
-  presetBox7,
   presetChoices,
   tempoChoices,
   tempoFast,
   tempoNormal,
-  tempoLabel,
   tempoSlow,
   type Preset,
 } from './presets';
 
-/** The fixed-cycle presets; Breath Retention has its own tests. */
-const cyclicChoices = presetChoices.filter(({ preset }) => !hasRetention(preset));
+/** The fixed-cycle presets, authored in counts; Breath Retention has its own tests. */
+const cyclicPresets: readonly Preset[] = [preset467, ...boxPhaseChoices.map(boxPreset)];
+
+/** A pattern's tempo choices by id, as the tempo control offers them. */
+const choice = (presetId: string) => presetChoices.find(({ id }) => id === presetId)!;
 
 /** Clock hand-settable by tests, simulating wall time. */
 class FakeClock implements Clock {
@@ -31,20 +34,6 @@ class FakeClock implements Clock {
   advance(ms: number): void {
     this.t += ms;
   }
-}
-
-function boxPreset(): Preset {
-  return {
-    name: 'box-4',
-    phases: [
-      { kind: 'inhale', seconds: 4, fill: [0, 1] },
-      { kind: 'hold', seconds: 4, fill: [1, 1] },
-      { kind: 'exhale', seconds: 4, fill: [1, 0] },
-      { kind: 'hold', seconds: 4, fill: [0, 0] },
-    ],
-    countSeconds: 1,
-    ticks: true,
-  };
 }
 
 describe('BreathingEngine', () => {
@@ -120,7 +109,7 @@ describe('BreathingEngine', () => {
   });
 
   it('keeps fill constant on an empty-lung hold after exhale', () => {
-    const engine = new BreathingEngine(boxPreset(), new FakeClock());
+    const engine = new BreathingEngine(boxPreset(4), new FakeClock());
     engine.start();
     // box-4: exhale ends at 12s; hold [12s, 16s] keeps fill at 0
     expect(engine.signalAt(13_000)!.kind).toBe('hold');
@@ -129,7 +118,7 @@ describe('BreathingEngine', () => {
   });
 
   it('clamps fill within 0 and 1 everywhere in the cycle', () => {
-    const engine = new BreathingEngine(boxPreset(), new FakeClock());
+    const engine = new BreathingEngine(boxPreset(4), new FakeClock());
     engine.start();
     for (let ms = 0; ms < engine.cycleMs * 3; ms += 37) {
       const s = engine.signalAt(ms)!;
@@ -263,7 +252,7 @@ describe('BreathingEngine', () => {
 });
 
 describe('Box Breathing presets', () => {
-  const boxChoices = cyclicChoices.slice(1);
+  const boxChoices = choice('box').tempos.map(({ label, build }) => ({ label, preset: build(defaultBreathCount) }));
 
   it.each(boxChoices)('$label defines four equal-duration phases with correct fill', ({ preset }) => {
     expect(preset.phases.map(({ kind }) => kind)).toEqual([
@@ -305,14 +294,35 @@ describe('Box Breathing presets', () => {
     expect(nextCycle.cycles).toBe(1);
   });
 
-  it('labels Box Breathing durations as counts per phase', () => {
-    expect(presetChoices.map(({ label }) => label)).toEqual([
-      '4-6-7',
-      'Box Breathing (4 counts per phase)',
-      'Box Breathing (5 counts per phase)',
-      'Box Breathing (7 counts per phase)',
-      'Breath Retention',
+  it('lists Box Breathing once among the patterns', () => {
+    expect(presetChoices.map(({ id, label }) => [id, label])).toEqual([
+      ['467', '4-6-7'],
+      ['box', 'Box Breathing'],
+      ['breath-retention', 'Breath Retention'],
     ]);
+  });
+
+  it('offers 3 to 8 seconds per phase as its tempo, defaulting to 5', () => {
+    const box = choice('box');
+    expect(box.tempos.map(({ id, label }) => [id, label])).toEqual([
+      ['3', '3 s per phase'],
+      ['4', '4 s per phase'],
+      ['5', '5 s per phase'],
+      ['7', '7 s per phase'],
+      ['8', '8 s per phase'],
+    ]);
+    expect(boxPhaseChoices).toEqual([3, 4, 5, 7, 8]);
+    expect(box.defaultTempoId).toBe(String(defaultBoxPhase));
+    expect(defaultBoxPhase).toBe(5);
+  });
+
+  it.each(boxPhaseChoices)('runs %i s phases of as many counts, one count per real second, with ticks', (n) => {
+    const preset = choice('box').tempos.find(({ id }) => id === String(n))!.build(defaultBreathCount);
+    expect(preset.name).toBe('Box Breathing');
+    expect(preset.phases.map(({ seconds }) => seconds)).toEqual([n, n, n, n]);
+    expect(preset.countSeconds).toBe(1);
+    expect(preset.ticks).toBe(true);
+    expect(new BreathingEngine(preset).cycleMs).toBe(n * 4 * 1000);
   });
 });
 
@@ -335,9 +345,18 @@ describe('Tempo', () => {
     expect(durations(applyTempo(preset467, tempoSlow))).toEqual([5, 7.5, 8.75]);
   });
 
-  it('applies to every preset and leaves kind, fill, and proportions untouched', () => {
-    expect(durations(applyTempo(presetBox4, tempoSlow))).toEqual([5, 5, 5, 5]);
-    for (const { preset } of cyclicChoices) {
+  it('offers Slow, Normal, and Fast for 4-6-7 and Breath Retention, defaulting to Normal', () => {
+    for (const id of ['467', 'breath-retention']) {
+      expect(choice(id).tempos.map(({ id }) => id)).toEqual(['slow', 'normal', 'fast']);
+      expect(choice(id).defaultTempoId).toBe('normal');
+    }
+    expect(choice('467').tempos.map(({ label }) => label)).toEqual(tempoChoices.map(({ label }) => label));
+    const fast = choice('467').tempos.find(({ id }) => id === 'fast')!.build(defaultBreathCount);
+    expect(fast.countSeconds).toBeCloseTo(0.8, 10);
+  });
+
+  it('leaves kind, fill, and proportions untouched', () => {
+    for (const preset of cyclicPresets) {
       for (const tempo of tempoChoices) {
         const scaled = applyTempo(preset, tempo);
         expect(scaled.phases.map(({ kind, fill }) => [kind, fill])).toEqual(
@@ -352,7 +371,7 @@ describe('Tempo', () => {
   });
 
   it('records the count length and keeps the ticks flag', () => {
-    for (const { preset } of cyclicChoices) {
+    for (const preset of cyclicPresets) {
       expect(preset.countSeconds).toBe(1);
       expect(preset.ticks).toBe(true);
     }
@@ -369,7 +388,7 @@ describe('Tempo', () => {
   });
 
   it('reproduces the current durations exactly at Normal tempo', () => {
-    for (const { preset } of presetChoices) {
+    for (const preset of [...cyclicPresets, breathRetentionPreset(defaultBreathCount)]) {
       const normal = applyTempo(preset, tempoNormal);
       expect(durations(normal)).toEqual(durations(preset));
       expect(new BreathingEngine(normal).cycleMs).toBe(new BreathingEngine(preset).cycleMs);
@@ -413,7 +432,7 @@ describe('Tempo', () => {
   it('keeps session time in real seconds regardless of tempo', () => {
     for (const tempo of [tempoSlow, tempoFast]) {
       const clock = new FakeClock();
-      const engine = new BreathingEngine(applyTempo(presetBox7, tempo), clock);
+      const engine = new BreathingEngine(applyTempo(preset467, tempo), clock);
       engine.start();
       clock.advance(60_000);
       expect(engine.signal()!.sessionElapsedSeconds).toBeCloseTo(60, 10);
@@ -440,7 +459,7 @@ describe('cuesBetween', () => {
   });
 
   it('crosses several cycle boundaries', () => {
-    const engine = new BreathingEngine(applyTempo(presetBox4, tempoNormal));
+    const engine = new BreathingEngine(boxPreset(4));
     const phases = engine.cuesBetween(15_500, 48_500).filter((c) => c.type === 'phase');
     expect(phases.map((c) => c.atMs / 1000)).toEqual([16, 20, 24, 28, 32, 36, 40, 44, 48]);
     expect(phases[0]!.kind).toBe('inhale');
@@ -507,7 +526,9 @@ describe('Breath Retention preset', () => {
   it('offers 20 to 40 breaths in steps of 5, defaulting to 30', () => {
     expect(breathCountChoices).toEqual([20, 25, 30, 35, 40]);
     expect(defaultBreathCount).toBe(30);
-    expect(presetChoices.at(-1)!.preset.phases.filter(({ role }) => role === 'breath')).toHaveLength(60);
+    const normal = choice('breath-retention').tempos.find(({ id }) => id === 'normal')!;
+    expect(normal.build(defaultBreathCount).phases.filter(({ role }) => role === 'breath')).toHaveLength(60);
+    expect(normal.build(20).phases.filter(({ role }) => role === 'breath')).toHaveLength(40);
   });
 
   it('scales a full breath to 4.375 / 3.5 / 2.8 s with the existing tempo multipliers', () => {
@@ -518,12 +539,10 @@ describe('Breath Retention preset', () => {
   });
 
   it('labels tempos without the count length for Breath Retention only', () => {
-    expect(tempoChoices.map((tempo) => tempoLabel(tempo, presetBreathRetention()))).toEqual([
-      'Slow',
-      'Normal',
-      'Fast',
-    ]);
-    expect(tempoLabel(tempoSlow, preset467)).toBe('Slow (1.25 s per count)');
+    expect(choice('breath-retention').tempos.map(({ label }) => label)).toEqual(['Slow', 'Normal', 'Fast']);
+    expect(choice('467').tempos[0]!.label).toBe('Slow (1.25 s per count)');
+    const slow = choice('breath-retention').tempos[0]!.build(30);
+    expect(fullBreath(slow)).toBeCloseTo(4.375, 10);
   });
 });
 

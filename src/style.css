@@ -113,13 +113,17 @@ body {
 
 button,
 select {
-  cursor: pointer;
+  &:enabled {
+    cursor: pointer;
+  }
 }
 
-button:hover,
-.controls button:hover,
-.preset-control select:hover {
-  background-color: color-mix(in srgb, var(--panel), white 5%);
+button,
+.controls button,
+.preset-control select {
+  &:hover:enabled {
+    background-color: color-mix(in srgb, var(--panel), white 5%);
+  }
 }
 
 /* Full-viewport column: shape centered, controls anchored at the bottom. */
@@ -374,6 +378,66 @@ button:hover,
 
 .preset-control select:disabled {
   opacity: 0.7;
+}
+
+/* The pattern control fills its own centered row, so the controls after it,
+   which change with the pattern, never shift its stepping buttons. */
+.pattern-control {
+  flex-basis: 100%;
+  align-items: center;
+}
+
+/* Pattern select with round previous/next buttons inside its edges. A fixed
+   width keeps the buttons in place while stepping; it fits the longest name. */
+.stepper {
+  position: relative;
+}
+
+.stepper select {
+  width: min(80vw, 15rem);
+  padding-inline: 2.9rem;
+  text-align: center;
+  text-align-last: center;
+}
+
+.stepper .step {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  margin-block: auto;
+  display: grid;
+  place-items: center;
+  width: 2rem;
+  height: 2rem;
+  min-width: 0;
+  padding: 0;
+  border: 1px solid var(--ghost);
+  border-radius: 999px;
+  background: var(--panel);
+  color: var(--muted);
+}
+
+.stepper #preset-prev {
+  left: 0.35rem;
+}
+
+.stepper #preset-next {
+  right: 0.35rem;
+}
+
+.stepper .step svg {
+  width: 1rem;
+  height: 1rem;
+  fill: none;
+  stroke: currentColor;
+  stroke-width: 2.2;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+}
+
+.stepper .step:disabled {
+  opacity: 0.7;
+  cursor: default;
 }
 
 .controls button:active {

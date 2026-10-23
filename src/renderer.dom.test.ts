@@ -5,10 +5,9 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { BreathingEngine, type Clock } from './engine';
 import {
   applyTempo,
+  boxPreset,
   breathRetentionPreset,
   preset467,
-  presetBox4,
-  presetBox7,
   presetChoices,
   tempoChoices,
   tempoFast,
@@ -145,7 +144,7 @@ describe('Renderer (DOM)', () => {
   });
 
   it('colors an empty-lung hold with the darker gray after an exhale', () => {
-    const engine = new BreathingEngine(boxPreset(), new FakeClock());
+    const engine = new BreathingEngine(boxPreset(4), new FakeClock());
     engine.start();
     const r = new Renderer(targets());
     r.renderRunning(engine.signalAt(14_000)!); // empty-lung hold
@@ -301,8 +300,8 @@ describe('Renderer (DOM)', () => {
   it('applies the 10-second countdown threshold to real, tempo-scaled duration', () => {
     const countdown = () => document.querySelector('#countdown')!.textContent;
 
-    // Box-7 at Slow: 8.75 real seconds per phase -> below the threshold.
-    const box = new BreathingEngine(applyTempo(presetBox7, tempoSlow), new FakeClock());
+    // Box Breathing's longest phase, 8 s, stays below the threshold.
+    const box = new BreathingEngine(boxPreset(8), new FakeClock());
     const boxRenderer = new Renderer(targets());
     for (const ms of [2_000, 10_000, 20_000, 30_000]) {
       boxRenderer.renderRunning(box.signalAt(ms));
@@ -401,20 +400,6 @@ describe('Renderer (DOM)', () => {
   });
 });
 
-function boxPreset(): Preset {
-  return {
-    name: 'box-4',
-    phases: [
-      { kind: 'inhale', seconds: 4, fill: [0, 1] },
-      { kind: 'hold', seconds: 4, fill: [1, 1] },
-      { kind: 'exhale', seconds: 4, fill: [1, 0] },
-      { kind: 'hold', seconds: 4, fill: [0, 0] },
-    ],
-    countSeconds: 1,
-    ticks: true,
-  };
-}
-
 function longHoldPreset(): Preset {
   return {
     name: 'long-hold',
@@ -463,14 +448,26 @@ describe('Tick marks and flash (DOM)', () => {
 
   it('follows counts at every tempo', () => {
     for (const tempo of [tempoSlow, tempoFast]) {
-      const preset = applyTempo(presetBox4, tempo);
+      const preset = applyTempo(preset467, tempo);
       const { renderer, run } = setup(preset);
-      for (let phase = 0; phase < 4; phase++) {
-        run((phase + 0.5) * 4 * preset.countSeconds * 1000);
-        expect(tickLines()).toHaveLength(4);
-      }
+      const count = preset.countSeconds * 1000;
+      run(2 * count);
+      expect(tickLines()).toHaveLength(4);
+      run(7 * count);
+      expect(tickLines()).toHaveLength(6);
+      run(13 * count);
+      expect(tickLines()).toHaveLength(7);
       renderer.renderIdle();
     }
+  });
+
+  it('shows one tick per second of a Box Breathing phase', () => {
+    const { renderer, run } = setup(boxPreset(8));
+    for (let phase = 0; phase < 4; phase++) {
+      run((phase + 0.5) * 8_000);
+      expect(tickLines()).toHaveLength(8);
+    }
+    renderer.renderIdle();
   });
 
   it('tints the ticks in the current ring color', () => {
@@ -592,9 +589,9 @@ describe('Control wiring', () => {
     );
     expect(presetSelector.value).toBe('467');
 
-    presetSelector.value = 'box-5';
+    presetSelector.value = 'box';
     presetSelector.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(presetSelector.value).toBe('box-5');
+    expect(presetSelector.value).toBe('box');
 
     const now = vi.spyOn(performance, 'now').mockReturnValue(0);
     (document.querySelector('#start') as HTMLButtonElement).click();
@@ -612,19 +609,19 @@ describe('Control wiring', () => {
     expect(app.getAttribute('data-session-state')).toBe('paused');
     expect(
       (document.querySelector('#phase-label') as HTMLElement).textContent,
-    ).toBe('Paused · breathe in'); // Box Breathing (5s) has not reached its hold.
+    ).toBe('Paused · breathe in'); // Box Breathing (5 s per phase) has not reached its hold.
     expect(presetSelector.disabled).toBe(true);
 
-    presetSelector.value = 'box-7';
+    presetSelector.value = 'breath-retention';
     presetSelector.dispatchEvent(new Event('change', { bubbles: true }));
-    expect(presetSelector.value).toBe('box-5');
+    expect(presetSelector.value).toBe('box');
 
     (document.querySelector('#resume') as HTMLButtonElement).click();
     expect(app.getAttribute('data-session-state')).toBe('running');
     (document.querySelector('#reset') as HTMLButtonElement).click();
     expect(app.getAttribute('data-session-state')).toBe('idle');
     expect(presetSelector.disabled).toBe(false);
-    expect(presetSelector.value).toBe('box-5');
+    expect(presetSelector.value).toBe('box');
     expect(
       (document.querySelector('#phase-label') as HTMLElement).textContent,
     ).toBe('Ready');
@@ -645,6 +642,8 @@ describe('Control wiring', () => {
     const presetSelector = document.querySelector<HTMLSelectElement>('#preset-select')!;
     const tempoSelector = document.querySelector<HTMLSelectElement>('#tempo-select')!;
 
+    // The wiring tests share one app instance; the previous one left Box selected.
+    choose(presetSelector, '467');
     expect(tempoSelector).not.toBeNull();
     expect(tempoSelector.closest('.controls')).not.toBeNull();
     expect(document.querySelector('label[for="tempo-select"]')!.textContent).toContain('Tempo');
@@ -654,7 +653,6 @@ describe('Control wiring', () => {
     expect(tempoSelector.value).toBe('normal');
     expect(tempoSelector.disabled).toBe(false);
 
-    choose(presetSelector, '467');
     choose(tempoSelector, 'fast');
     expect(tempoSelector.value).toBe('fast');
 

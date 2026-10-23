@@ -108,6 +108,127 @@ describe('Done label and summary', () => {
   });
 });
 
+describe('Pattern stepping buttons', () => {
+  const pattern = () => $<HTMLSelectElement>('#preset-select').value;
+
+  it('steps forward through every pattern and wraps around', async () => {
+    await load();
+    expect(pattern()).toBe('467');
+    click('preset-next');
+    expect(pattern()).toBe('box');
+    expect(app().dataset.preset).toBe('box');
+    expect($<HTMLSelectElement>('#tempo-select').value).toBe('5');
+    click('preset-next');
+    expect(pattern()).toBe('breath-retention');
+    expect(app().dataset.preset).toBe('breath-retention');
+    click('preset-next');
+    expect(pattern()).toBe('467');
+  });
+
+  it('steps backward and wraps from the first pattern to the last', async () => {
+    await load();
+    click('preset-prev');
+    expect(pattern()).toBe('breath-retention');
+    expect(Array.from($<HTMLSelectElement>('#tempo-select').options, (o) => o.textContent)).toEqual([
+      'Slow',
+      'Normal',
+      'Fast',
+    ]);
+    click('preset-prev');
+    expect(pattern()).toBe('box');
+  });
+
+  it('is unavailable during a session', async () => {
+    await load();
+    click('start');
+    expect($<HTMLButtonElement>('#preset-prev').disabled).toBe(true);
+    expect($<HTMLButtonElement>('#preset-next').disabled).toBe(true);
+    // Even a click that gets through changes nothing.
+    $<HTMLButtonElement>('#preset-next').disabled = false;
+    click('preset-next');
+    expect(pattern()).toBe('467');
+    click('reset');
+    expect($<HTMLButtonElement>('#preset-next').disabled).toBe(false);
+  });
+
+  it('sits inside the pattern control with accessible names, and only there', async () => {
+    await load();
+    const stepper = $('#preset-select').closest('.stepper')!;
+    expect(stepper.querySelector('#preset-prev')!.getAttribute('aria-label')).toBe('Previous pattern');
+    expect(stepper.querySelector('#preset-next')!.getAttribute('aria-label')).toBe('Next pattern');
+    expect($<HTMLButtonElement>('#preset-prev').type).toBe('button');
+    // Buttons are not inside a label, so pressing them never opens the list.
+    expect($('#preset-prev').closest('label')).toBeNull();
+    expect(text('label[for="preset-select"]')).toBe('Breathing pattern');
+    expect($('#tempo-select').closest('.stepper')).toBeNull();
+    expect(document.querySelectorAll('.stepper')).toHaveLength(1);
+  });
+
+  it('gives the pattern select a fixed width on its own row', async () => {
+    await load();
+    const rule = css.slice(css.indexOf('.stepper select {'), css.indexOf('}', css.indexOf('.stepper select {')));
+    expect(rule).toMatch(/\bwidth: min\(80vw, \d+(\.\d+)?rem\)/);
+    expect(rule).toContain('text-align-last: center');
+    // Its own row: the controls after it change with the pattern and must not move it.
+    expect(css).toMatch(/\.pattern-control \{[^}]*flex-basis: 100%/);
+    expect($('.pattern-control').contains($('#preset-select'))).toBe(true);
+  });
+});
+
+describe('Tempo follows the pattern', () => {
+  const tempos = () => Array.from($<HTMLSelectElement>('#tempo-select').options, (o) => [o.value, o.textContent]);
+  const tempo = () => $<HTMLSelectElement>('#tempo-select').value;
+
+  it('offers 3 to 8 seconds per phase for Box Breathing, with 5 selected and the Tempo caption', async () => {
+    await load();
+    choose('preset-select', 'box');
+    expect(tempos()).toEqual([
+      ['3', '3 s per phase'],
+      ['4', '4 s per phase'],
+      ['5', '5 s per phase'],
+      ['7', '7 s per phase'],
+      ['8', '8 s per phase'],
+    ]);
+    expect(tempo()).toBe('5');
+    expect(text('label[for="tempo-select"] span')).toBe('Tempo');
+  });
+
+  it('runs Box Breathing at the chosen phase length', async () => {
+    await load();
+    choose('preset-select', 'box');
+    choose('tempo-select', '3');
+    click('start');
+    at(2_900);
+    expect(text('#phase-label')).toBe('Breathe in');
+    at(3_100);
+    expect(text('#phase-label')).toBe('Hold');
+  });
+
+  it('remembers each pattern\'s tempo while the page is open', async () => {
+    await load();
+    choose('tempo-select', 'fast');
+    choose('preset-select', 'box');
+    expect(tempo()).toBe('5');
+    choose('tempo-select', '7');
+    choose('preset-select', 'breath-retention');
+    expect(tempo()).toBe('normal');
+    choose('preset-select', '467');
+    expect(tempo()).toBe('fast');
+    expect(tempos()[2]).toEqual(['fast', 'Fast (0.8 s per count)']);
+    choose('preset-select', 'box');
+    expect(tempo()).toBe('7');
+  });
+
+  it('locks the tempo during a session', async () => {
+    await load();
+    choose('preset-select', 'box');
+    click('start');
+    expect($<HTMLSelectElement>('#tempo-select').disabled).toBe(true);
+    choose('tempo-select', '8');
+    expect(tempo()).toBe('5');
+  });
+});
+
 describe('Breath Retention controls', () => {
   // Normal tempo, 20 breaths: breathing 0..70 s, then the hold.
   const startRetention = async () => {

@@ -1,17 +1,7 @@
 import './style.css';
 import { DEBUG } from './debug';
 import { BreathingEngine } from './engine';
-import {
-  applyTempo,
-  BREATH_RETENTION_ID,
-  breathCountChoices,
-  breathRetentionPreset,
-  defaultBreathCount,
-  defaultTempo,
-  presetChoices,
-  tempoChoices,
-  tempoLabel,
-} from './presets';
+import { breathCountChoices, defaultBreathCount, presetChoices, type PresetChoice, type TempoChoice } from './presets';
 import { Renderer, type RenderTargets } from './renderer';
 import { SoundScheduler } from './sound';
 import { ThemeController } from './theme';
@@ -34,13 +24,6 @@ const defaultPreset = presetChoices[0]!;
 presetSelector.value = defaultPreset.id;
 
 const tempoSelector = requireTarget<HTMLSelectElement>('#tempo-select');
-for (const tempo of tempoChoices) {
-  const option = document.createElement('option');
-  option.value = tempo.id;
-  option.textContent = tempo.label;
-  tempoSelector.append(option);
-}
-tempoSelector.value = defaultTempo.id;
 
 const breathsSelector = requireTarget<HTMLSelectElement>('#breaths-select');
 for (const breaths of breathCountChoices) {
@@ -67,38 +50,68 @@ const targets: RenderTargets = {
 const renderer = new Renderer(targets);
 const sound = new SoundScheduler();
 let selectedPreset = defaultPreset;
-let selectedTempo = defaultTempo;
+/** Each pattern's last tempo choice while the page is open. */
+const selectedTempoIds = new Map<string, string>();
+let selectedTempo = showTempos(defaultPreset);
 let selectedBreaths = defaultBreathCount;
 let engine = createEngine();
 
+/** Fills the tempo control with the pattern's choices and selects its remembered one. */
+function showTempos(choice: PresetChoice): TempoChoice {
+  const id = selectedTempoIds.get(choice.id) ?? choice.defaultTempoId;
+  const tempo = choice.tempos.find((t) => t.id === id)!;
+  tempoSelector.replaceChildren(
+    ...choice.tempos.map(({ id, label }) => {
+      const option = document.createElement('option');
+      option.value = id;
+      option.textContent = label;
+      return option;
+    }),
+  );
+  tempoSelector.value = tempo.id;
+  return tempo;
+}
+
 /** The engine only ever receives a tempo-resolved preset (real seconds). */
 function createEngine(): BreathingEngine {
-  const base =
-    selectedPreset.id === BREATH_RETENTION_ID ? breathRetentionPreset(selectedBreaths) : selectedPreset.preset;
-  const preset = applyTempo(base, selectedTempo);
+  const preset = selectedTempo.build(selectedBreaths);
   renderer.usePreset(preset);
-  // Breath Retention-only controls show by CSS; tempo labels follow the preset.
+  // Breath Retention-only controls show by CSS.
   app.dataset.preset = selectedPreset.id;
-  Array.from(tempoSelector.options).forEach((option, i) => {
-    option.textContent = tempoLabel(tempoChoices[i]!, preset);
-  });
   return new BreathingEngine(preset);
+}
+
+/** Selecting from the list and stepping with the buttons both land here. */
+function selectPreset(id: string): void {
+  const choice = presetChoices.find((c) => c.id === id);
+  if (engine.state !== 'idle' || !choice) {
+    presetSelector.value = selectedPreset.id;
+    return;
+  }
+  selectedPreset = choice;
+  presetSelector.value = choice.id;
+  selectedTempo = showTempos(choice);
+  engine = createEngine();
+  sync();
 }
 
 function button(id: string): HTMLButtonElement {
   return requireTarget<HTMLButtonElement>(`#${id}`);
 }
 
-presetSelector.addEventListener('change', () => {
-  const choice = presetChoices.find(({ id }) => id === presetSelector.value);
-  if (engine.state !== 'idle' || !choice) {
-    presetSelector.value = selectedPreset.id;
-    return;
-  }
-  selectedPreset = choice;
-  engine = createEngine();
-  sync();
-});
+presetSelector.addEventListener('change', () => selectPreset(presetSelector.value));
+
+/** Selects the pattern `offset` places away in the list, wrapping around. */
+function stepPreset(offset: number): void {
+  const n = presetChoices.length;
+  const index = presetChoices.indexOf(selectedPreset);
+  selectPreset(presetChoices[(index + offset + n) % n]!.id);
+}
+
+const presetPrev = button('preset-prev');
+const presetNext = button('preset-next');
+presetPrev.addEventListener('click', () => stepPreset(-1));
+presetNext.addEventListener('click', () => stepPreset(1));
 
 breathsSelector.addEventListener('change', () => {
   const breaths = Number(breathsSelector.value);
@@ -112,12 +125,13 @@ breathsSelector.addEventListener('change', () => {
 });
 
 tempoSelector.addEventListener('change', () => {
-  const choice = tempoChoices.find(({ id }) => id === tempoSelector.value);
+  const choice = selectedPreset.tempos.find(({ id }) => id === tempoSelector.value);
   if (engine.state !== 'idle' || !choice) {
     tempoSelector.value = selectedTempo.id;
     return;
   }
   selectedTempo = choice;
+  selectedTempoIds.set(selectedPreset.id, choice.id);
   engine = createEngine();
   sync();
 });
@@ -194,6 +208,8 @@ document.addEventListener('visibilitychange', () => {
 function sync(): void {
   app.dataset.sessionState = engine.state;
   presetSelector.disabled = engine.state !== 'idle';
+  presetPrev.disabled = engine.state !== 'idle';
+  presetNext.disabled = engine.state !== 'idle';
   tempoSelector.disabled = engine.state !== 'idle';
   breathsSelector.disabled = engine.state !== 'idle';
   // Start/resume queue sounds; pause/reset cancel them.

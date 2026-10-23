@@ -56,10 +56,22 @@
       </section>
 
       <div class="controls" role="group" aria-label="Session controls">
-        <label class="preset-control" for="preset-select">
-          <span>Breathing pattern</span>
-          <select id="preset-select"></select>
-        </label>
+        <div class="preset-control pattern-control">
+          <label for="preset-select">Breathing pattern</label>
+          <div class="stepper">
+            <button id="preset-prev" class="step" type="button" aria-label="Previous pattern">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M14.5 6l-6 6 6 6" />
+              </svg>
+            </button>
+            <select id="preset-select"></select>
+            <button id="preset-next" class="step" type="button" aria-label="Next pattern">
+              <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
+                <path d="M9.5 6l6 6-6 6" />
+              </svg>
+            </button>
+          </div>
+        </div>
         <label class="preset-control" for="tempo-select">
           <span>Tempo</span>
           <select id="tempo-select"></select>
