@@ -303,9 +303,26 @@ describe('Breath Retention controls', () => {
     expect(text('#countdown')).toBe('1/20');
   });
 
+  it('puts Breathe in on its own row above the preset controls, laid out only during a session', async () => {
+    await load();
+    const row = $('#breathe-in').parentElement!;
+    expect(row.classList.contains('breathe-in-row')).toBe(true);
+    expect(row.parentElement).toBe($('.controls'));
+    expect(row.parentElement!.firstElementChild).toBe(row);
+    expect(row.contains($('#reset'))).toBe(false);
+    // Hidden by default; laid out for a running or paused Breath Retention session.
+    expect(css).toMatch(/\.breathe-in-row \{\s*display: none;\s*flex-basis: 100%;/);
+    expect(css).toMatch(
+      /\.app\[data-preset="breath-retention"\]:not\(\[data-session-state="idle"\]\) \.breathe-in-row \{\s*display: flex;/,
+    );
+    // Within the row, the button keeps its space while hidden outside the hold.
+    expect(css).toMatch(/#breathe-in \{\s*visibility: hidden;/);
+    expect(css).not.toMatch(/#breathe-in \{\s*display:/);
+  });
+
   it('runs a round: breathing, the hold, Breathe in, recovery, Done', async () => {
     await startRetention();
-    expect(css).toContain('.app[data-session-state="running"][data-role="retention"] #breathe-in');
+    expect(css).toMatch(/\.app\[data-session-state="running"\]\[data-role="retention"\] #breathe-in \{\s*visibility: visible;/);
     at(16 * 3_500 + 500);
     expect(text('#countdown')).toBe('17/20');
     expect(app().dataset.role).toBe('breath');

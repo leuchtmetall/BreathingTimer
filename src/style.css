@@ -457,12 +457,26 @@ button,
   display: none;
 }
 
-#breathe-in {
+/* Breathe in sits on its own row above the preset controls. The row is laid
+   out for the whole Breath Retention session and the button only turns
+   visible in the hold, so the circle never jumps when the hold starts or
+   ends. Idle and the other presets get no row at all. */
+.breathe-in-row {
   display: none;
+  flex-basis: 100%;
+  justify-content: center;
+}
+
+.app[data-preset="breath-retention"]:not([data-session-state="idle"]) .breathe-in-row {
+  display: flex;
+}
+
+#breathe-in {
+  visibility: hidden;
 }
 
 .app[data-session-state="running"][data-role="retention"] #breathe-in {
-  display: inline-block;
+  visibility: visible;
 }
 
 /* The breath count only applies to Breath Retention. */
