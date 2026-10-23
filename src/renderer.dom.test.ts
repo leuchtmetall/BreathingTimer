@@ -5,6 +5,7 @@ import { beforeAll, describe, expect, it, vi } from 'vitest';
 import { BreathingEngine, type Clock } from './engine';
 import {
   applyTempo,
+  balancedPreset,
   boxPreset,
   breathRetentionPreset,
   preset467,
@@ -470,6 +471,15 @@ describe('Tick marks and flash (DOM)', () => {
     renderer.renderIdle();
   });
 
+  it('splits a 5.5 s Balanced Breathing phase into 5 equal arcs', () => {
+    const { renderer, run } = setup(balancedPreset(5.5));
+    run(1_000);
+    expect(tickLines()).toHaveLength(5);
+    run(8_000);
+    expect(tickLines()).toHaveLength(5);
+    renderer.renderIdle();
+  });
+
   it('tints the ticks in the current ring color', () => {
     const { renderer, run } = setup(applyTempo(preset467, tempoNormal));
     const tint = () => document.querySelector<SVGGElement>('#ticks')!.style.getPropertyValue('--tick-phase');
@@ -587,7 +597,7 @@ describe('Control wiring', () => {
     expect(Array.from(presetSelector.options, ({ value, textContent }) => [value, textContent])).toEqual(
       presetChoices.map(({ id, label }) => [id, label]),
     );
-    expect(presetSelector.value).toBe('467');
+    expect(presetSelector.value).toBe('balanced');
 
     presetSelector.value = 'box';
     presetSelector.dispatchEvent(new Event('change', { bubbles: true }));

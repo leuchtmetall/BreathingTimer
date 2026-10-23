@@ -77,6 +77,7 @@ describe('Debug mode', () => {
 describe('Done label and summary', () => {
   it('labels the reset control Done after the first cycle and moves the stats below the circle', async () => {
     await load();
+    choose('preset-select', '467');
     click('start');
     at(0);
     expect(text('#reset')).toBe('Reset');
@@ -113,16 +114,18 @@ describe('Pattern stepping buttons', () => {
 
   it('steps forward through every pattern and wraps around', async () => {
     await load();
-    expect(pattern()).toBe('467');
+    expect(pattern()).toBe('balanced');
     click('preset-next');
     expect(pattern()).toBe('box');
     expect(app().dataset.preset).toBe('box');
     expect($<HTMLSelectElement>('#tempo-select').value).toBe('5');
     click('preset-next');
+    expect(pattern()).toBe('467');
+    click('preset-next');
     expect(pattern()).toBe('breath-retention');
     expect(app().dataset.preset).toBe('breath-retention');
     click('preset-next');
-    expect(pattern()).toBe('467');
+    expect(pattern()).toBe('balanced');
   });
 
   it('steps backward and wraps from the first pattern to the last', async () => {
@@ -135,7 +138,7 @@ describe('Pattern stepping buttons', () => {
       'Fast',
     ]);
     click('preset-prev');
-    expect(pattern()).toBe('box');
+    expect(pattern()).toBe('467');
   });
 
   it('is unavailable during a session', async () => {
@@ -146,7 +149,7 @@ describe('Pattern stepping buttons', () => {
     // Even a click that gets through changes nothing.
     $<HTMLButtonElement>('#preset-next').disabled = false;
     click('preset-next');
-    expect(pattern()).toBe('467');
+    expect(pattern()).toBe('balanced');
     click('reset');
     expect($<HTMLButtonElement>('#preset-next').disabled).toBe(false);
   });
@@ -179,6 +182,30 @@ describe('Tempo follows the pattern', () => {
   const tempos = () => Array.from($<HTMLSelectElement>('#tempo-select').options, (o) => [o.value, o.textContent]);
   const tempo = () => $<HTMLSelectElement>('#tempo-select').value;
 
+  it('offers 4 to 7 seconds per phase for Balanced Breathing, selected by default with 5.5', async () => {
+    await load();
+    expect($<HTMLSelectElement>('#preset-select').value).toBe('balanced');
+    expect(tempos()).toEqual([
+      ['4', '4 s per phase'],
+      ['5', '5 s per phase'],
+      ['5.5', '5.5 s per phase'],
+      ['6', '6 s per phase'],
+      ['7', '7 s per phase'],
+    ]);
+    expect(tempo()).toBe('5.5');
+  });
+
+  it('runs Balanced Breathing in and out at the chosen phase length', async () => {
+    await load();
+    click('start');
+    at(5_400);
+    expect(text('#phase-label')).toBe('Breathe in');
+    at(5_600);
+    expect(text('#phase-label')).toBe('Breathe out');
+    at(11_100);
+    expect(text('#phase-label')).toBe('Breathe in');
+  });
+
   it('offers 3 to 8 seconds per phase for Box Breathing, with 5 selected and the Tempo caption', async () => {
     await load();
     choose('preset-select', 'box');
@@ -206,6 +233,7 @@ describe('Tempo follows the pattern', () => {
 
   it('remembers each pattern\'s tempo while the page is open', async () => {
     await load();
+    choose('preset-select', '467');
     choose('tempo-select', 'fast');
     choose('preset-select', 'box');
     expect(tempo()).toBe('5');
@@ -242,6 +270,7 @@ describe('Breath Retention controls', () => {
   it('shows its options only while selected, with their defaults and tempo labels', async () => {
     await load();
     const tempoLabels = () => Array.from($<HTMLSelectElement>('#tempo-select').options, (o) => o.textContent);
+    choose('preset-select', '467');
     expect(app().dataset.preset).toBe('467');
     expect(css).toContain('.app:not([data-preset="breath-retention"]) .breath-retention-only');
     expect($('#breaths-select').closest('.breath-retention-only')).not.toBeNull();

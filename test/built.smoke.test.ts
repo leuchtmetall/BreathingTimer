@@ -82,6 +82,13 @@ function sourcesMtime(): number {
   return latest;
 }
 
+/** Selects 4-6-7 Breathing (Balanced Breathing is the default). */
+function choose467(app: ReturnType<typeof loadBuiltApp>): void {
+  const select = app.dom.window.document.querySelector<HTMLSelectElement>('#preset-select')!;
+  select.value = '467';
+  select.dispatchEvent(new app.dom.window.Event('change', { bubbles: true }));
+}
+
 describe('built single-file app (dist/index.html)', () => {
   it('runs a complete session with zero runtime errors', () => {
     const app = loadBuiltApp();
@@ -97,6 +104,8 @@ describe('built single-file app (dist/index.html)', () => {
     expect(state()).toBe('idle');
     expect(label()).toBe('Ready');
     expect(radius()).toBe('40.00');
+    expect(document.querySelector<HTMLSelectElement>('#preset-select')!.value).toBe('balanced');
+    choose467(app);
 
     // start -> inhale grows frame by frame
     (document.querySelector('#start')! as HTMLButtonElement).click();
@@ -220,6 +229,7 @@ describe('built single-file app (dist/index.html)', () => {
     expect(toggle.getAttribute('aria-pressed')).toBe('true'); // on by default
 
     app.stepFrame();
+    choose467(app);
     expect(ticks()).toBe(0); // idle
     (document.querySelector('#start')! as HTMLButtonElement).click();
     app.advance(500);

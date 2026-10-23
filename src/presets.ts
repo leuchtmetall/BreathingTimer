@@ -41,7 +41,7 @@ export interface Preset {
 
 /** 4-6-7 breathing: inhale 4 counts, hold with full lungs 6, exhale 7. */
 export const preset467: Preset = {
-  name: '4-6-7',
+  name: '4-6-7 Breathing',
   phases: [
     { kind: 'inhale', seconds: 4, fill: [0, 1] },
     { kind: 'hold', seconds: 6, fill: [1, 1] },
@@ -50,6 +50,27 @@ export const preset467: Preset = {
   countSeconds: 1,
   ticks: true,
 };
+
+/**
+ * Balanced Breathing: inhale and exhale of equal length, no holds. Each phase
+ * shows a whole number of evenly spaced ticks, so a 5.5 s phase ticks every
+ * 1.1 s rather than once per real second.
+ */
+export function balancedPreset(seconds: number): Preset {
+  return {
+    name: 'Balanced Breathing',
+    phases: [
+      { kind: 'inhale', seconds, fill: [0, 1] },
+      { kind: 'exhale', seconds, fill: [1, 0] },
+    ],
+    countSeconds: seconds / Math.floor(seconds),
+    ticks: true,
+  };
+}
+
+/** Balanced Breathing phase lengths in seconds, offered by the tempo control. */
+export const balancedPhaseChoices: readonly number[] = [4, 5, 5.5, 6, 7];
+export const defaultBalancedPhase = 5.5;
 
 /** Box Breathing at one count per real second: inhale, hold, exhale, hold. */
 export function boxPreset(counts: number): Preset {
@@ -161,10 +182,14 @@ export const BREATH_RETENTION_ID = 'breath-retention';
 /** Ordered UI catalog; the first entry is the default selection. */
 export const presetChoices: readonly PresetChoice[] = [
   {
-    id: '467',
-    label: preset467.name,
-    tempos: tempoChoices.map((t) => ({ id: t.id, label: t.label, build: () => applyTempo(preset467, t) })),
-    defaultTempoId: defaultTempo.id,
+    id: 'balanced',
+    label: 'Balanced Breathing',
+    tempos: balancedPhaseChoices.map((seconds) => ({
+      id: String(seconds),
+      label: `${seconds} s per phase`,
+      build: () => balancedPreset(seconds),
+    })),
+    defaultTempoId: String(defaultBalancedPhase),
   },
   {
     id: 'box',
@@ -175,6 +200,12 @@ export const presetChoices: readonly PresetChoice[] = [
       build: () => boxPreset(counts),
     })),
     defaultTempoId: String(defaultBoxPhase),
+  },
+  {
+    id: '467',
+    label: preset467.name,
+    tempos: tempoChoices.map((t) => ({ id: t.id, label: t.label, build: () => applyTempo(preset467, t) })),
+    defaultTempoId: defaultTempo.id,
   },
   {
     id: BREATH_RETENTION_ID,

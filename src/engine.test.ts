@@ -2,10 +2,13 @@ import { describe, expect, it } from 'vitest';
 import { BreathingEngine, type Clock } from './engine';
 import {
   applyTempo,
+  balancedPhaseChoices,
+  balancedPreset,
   boxPhaseChoices,
   boxPreset,
   breathCountChoices,
   breathRetentionPreset,
+  defaultBalancedPhase,
   defaultBreathCount,
   defaultBoxPhase,
   defaultTempo,
@@ -294,10 +297,11 @@ describe('Box Breathing presets', () => {
     expect(nextCycle.cycles).toBe(1);
   });
 
-  it('lists Box Breathing once among the patterns', () => {
+  it('lists the patterns by simplicity, Box Breathing once', () => {
     expect(presetChoices.map(({ id, label }) => [id, label])).toEqual([
-      ['467', '4-6-7'],
+      ['balanced', 'Balanced Breathing'],
       ['box', 'Box Breathing'],
+      ['467', '4-6-7 Breathing'],
       ['breath-retention', 'Breath Retention'],
     ]);
   });
@@ -323,6 +327,41 @@ describe('Box Breathing presets', () => {
     expect(preset.countSeconds).toBe(1);
     expect(preset.ticks).toBe(true);
     expect(new BreathingEngine(preset).cycleMs).toBe(n * 4 * 1000);
+  });
+});
+
+describe('Balanced Breathing presets', () => {
+  it('offers 4 to 7 seconds per phase as its tempo, defaulting to 5.5', () => {
+    const balanced = choice('balanced');
+    expect(balanced.tempos.map(({ id, label }) => [id, label])).toEqual([
+      ['4', '4 s per phase'],
+      ['5', '5 s per phase'],
+      ['5.5', '5.5 s per phase'],
+      ['6', '6 s per phase'],
+      ['7', '7 s per phase'],
+    ]);
+    expect(balancedPhaseChoices).toEqual([4, 5, 5.5, 6, 7]);
+    expect(balanced.defaultTempoId).toBe(String(defaultBalancedPhase));
+    expect(defaultBalancedPhase).toBe(5.5);
+  });
+
+  it.each(balancedPhaseChoices)('runs %s s in and out with no holds', (n) => {
+    const preset = choice('balanced').tempos.find(({ id }) => id === String(n))!.build(defaultBreathCount);
+    expect(preset.name).toBe('Balanced Breathing');
+    expect(preset.phases.map(({ kind, seconds, fill }) => [kind, seconds, fill])).toEqual([
+      ['inhale', n, [0, 1]],
+      ['exhale', n, [1, 0]],
+    ]);
+    expect(preset.ticks).toBe(true);
+    expect(new BreathingEngine(preset).cycleMs).toBe(n * 2 * 1000);
+  });
+
+  it('ticks once per second at whole lengths and evenly every 1.1 s at 5.5 s', () => {
+    expect(balancedPreset(6).countSeconds).toBe(1);
+    expect(balancedPreset(5.5).countSeconds).toBeCloseTo(1.1, 10);
+    const engine = new BreathingEngine(balancedPreset(5.5));
+    const ticks = engine.cuesBetween(0, 5_500).filter(({ type }) => type === 'tick');
+    expect(ticks.map(({ atMs }) => atMs)).toEqual([1_100, 2_200, 3_300, 4_400].map((ms) => expect.closeTo(ms, 6)));
   });
 });
 
