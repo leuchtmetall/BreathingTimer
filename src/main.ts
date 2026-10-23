@@ -1,10 +1,11 @@
 import './style.css';
 import { DEBUG } from './debug';
 import { BreathingEngine } from './engine';
+import { FaviconController } from './favicon';
 import { breathCountChoices, defaultBreathCount, presetChoices, type PresetChoice, type TempoChoice } from './presets';
-import { Renderer, type RenderTargets } from './renderer';
+import { arcColor, Renderer, type RenderTargets } from './renderer';
 import { SoundScheduler } from './sound';
-import { ThemeController } from './theme';
+import { NIGHT_QUERY, ThemeController } from './theme';
 
 function requireTarget<T extends Element>(selector: string): T {
   const el = document.querySelector(selector);
@@ -95,6 +96,18 @@ function selectPreset(id: string): void {
   sync();
 }
 
+/** index.html ships a static idle icon; create one where the head is absent (tests). */
+function faviconLink(): HTMLLinkElement {
+  const existing = document.querySelector<HTMLLinkElement>('link#favicon');
+  if (existing) return existing;
+  const link = document.createElement('link');
+  link.id = 'favicon';
+  link.rel = 'icon';
+  link.type = 'image/svg+xml';
+  document.head.append(link);
+  return link;
+}
+
 function button(id: string): HTMLButtonElement {
   return requireTarget<HTMLButtonElement>(`#${id}`);
 }
@@ -177,11 +190,14 @@ button('breathe-in').addEventListener('click', () => {
 });
 
 // Available in every session state; never touches the engine.
-new ThemeController(
-  document.documentElement,
-  button('theme-toggle'),
-  typeof window.matchMedia === 'function' ? (query) => window.matchMedia(query) : undefined,
-);
+const matchMedia = typeof window.matchMedia === 'function' ? (query: string) => window.matchMedia(query) : undefined;
+const themeToggle = button('theme-toggle');
+new ThemeController(document.documentElement, themeToggle, matchMedia);
+
+// The tab icon follows the arc color; the palette itself changes with the theme.
+const favicon = new FaviconController(document.documentElement, faviconLink());
+themeToggle.addEventListener('click', () => favicon.refresh());
+matchMedia?.(NIGHT_QUERY).addEventListener?.('change', () => favicon.refresh());
 
 // On at load and never stored, so a reload turns it on again. Audio itself
 // starts on the first Start click (a user action). Never touches the engine:
@@ -200,6 +216,9 @@ soundToggle.addEventListener('click', () => {
 // Hidden tabs get no frames and throttled timers; the queued horizon covers
 // the gap, and this keeps it topped up whenever a timer does fire.
 setInterval(() => sound.sync(engine), 5_000);
+// Hidden tabs get no frames either, and that is when the tab icon matters:
+// keep its color in step on a timer (throttled, but at least ~1/s at first).
+setInterval(update, 500);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') sound.recover();
 });
@@ -220,6 +239,7 @@ function sync(): void {
 function update(): void {
   if (engine.state === 'idle') {
     renderer.renderIdle();
+    favicon.show('var(--color-idle)');
     setRole('');
     setResetLabel('Reset');
     return;
@@ -228,6 +248,7 @@ function update(): void {
   if (!signal) return;
   if (engine.state === 'paused') renderer.renderPaused(signal);
   else renderer.renderRunning(signal);
+  favicon.show(arcColor(signal));
   renderer.renderRounds(engine.holds);
   // The Breathe in button shows by CSS while running in the hold.
   setRole(signal.role ?? '');

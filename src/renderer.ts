@@ -54,7 +54,7 @@ const DARK_VARIANTS: Record<string, string> = {
 };
 
 /** Bright color of the filled arc for a phase (with its lung state). */
-function arcColor({ kind, fill, role }: SessionSignal): string {
+export function arcColor({ kind, fill, role }: SessionSignal): string {
   if (role === 'breath') return 'var(--color-breath)';
   if (role === 'retention') return 'var(--color-retention)';
   switch (kind) {
