@@ -1,5 +1,6 @@
 import './style.css';
 import { DEBUG } from './debug';
+import { DebugMenu } from './debug-menu';
 import { BreathingEngine } from './engine';
 import { FaviconController } from './favicon';
 import { breathCountChoices, defaultBreathCount, presetChoices, type PresetChoice, type TempoChoice } from './presets';
@@ -55,6 +56,20 @@ let selectedPreset = defaultPreset;
 const selectedTempoIds = new Map<string, string>();
 let selectedTempo = showTempos(defaultPreset);
 let selectedBreaths = defaultBreathCount;
+// Debug only: jumps start a fresh session at a point of the selected pattern.
+const debugMenu = DEBUG
+  ? new DebugMenu(requireTarget<HTMLElement>('.display'), {
+      jump({ sessionMs, holdsMs }) {
+        if (sound.isEnabled) sound.unlock();
+        renderer.clearSummary();
+        engine.startAt(sessionMs, holdsMs);
+        // From the landing point itself, so its phase tone still plays.
+        sound.restartAt(engine, sessionMs);
+        sync();
+      },
+      preview: ({ type, kind }) => sound.preview(type, kind),
+    })
+  : null;
 let engine = createEngine();
 
 /** Fills the tempo control with the pattern's choices and selects its remembered one. */
@@ -77,6 +92,7 @@ function showTempos(choice: PresetChoice): TempoChoice {
 function createEngine(): BreathingEngine {
   const preset = selectedTempo.build(selectedBreaths);
   renderer.usePreset(preset);
+  debugMenu?.rebuild(preset);
   // Breath Retention-only controls show by CSS.
   app.dataset.preset = selectedPreset.id;
   return new BreathingEngine(preset);

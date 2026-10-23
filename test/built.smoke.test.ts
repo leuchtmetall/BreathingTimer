@@ -75,6 +75,7 @@ function sourcesMtime(): number {
     'theme.ts',
     'sound.ts',
     'debug.ts',
+    'debug-menu.ts',
     'style.css',
   ]) {
     latest = Math.max(latest, statSync(join(base, f)).mtimeMs);
@@ -135,6 +136,7 @@ describe('built single-file app (dist/index.html)', () => {
     // Pause and resume are debug-only: not in the shipped page at all.
     expect(document.querySelector('#pause')).toBeNull();
     expect(document.querySelector('#resume')).toBeNull();
+    expect(document.querySelector('.debug-menu')).toBeNull();
     const reset = document.querySelector<HTMLButtonElement>('#reset')!;
     expect(reset.textContent).toBe('Reset');
 

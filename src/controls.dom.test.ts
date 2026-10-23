@@ -352,3 +352,89 @@ describe('Breath Retention controls', () => {
     expect(rounds()).toEqual([]);
   });
 });
+
+describe('Debug menu', () => {
+  const menu = () => document.querySelector<HTMLDetailsElement>('.debug-menu');
+  const menuButton = (label: string) =>
+    Array.from(menu()!.querySelectorAll('button')).find((b) => b.textContent === label)!;
+  const jumpLabels = () => Array.from(menu()!.querySelectorAll('[data-group="jump"] button'), (b) => b.textContent);
+  const debugOn = async () => {
+    vi.doMock('./debug', () => ({ DEBUG: true }));
+    await load();
+  };
+
+  it('is not on the page when debug mode is off', async () => {
+    await load();
+    expect(menu()).toBeNull();
+  });
+
+  it('is collapsed at load, inside the display, and lists the entries for the selected pattern', async () => {
+    await debugOn();
+    expect(menu()!.open).toBe(false);
+    expect(menu()!.closest('.display')).not.toBeNull();
+    expect(jumpLabels()).toHaveLength(4); // Balanced Breathing
+    choose('preset-select', 'box');
+    expect(jumpLabels()).toHaveLength(8);
+    choose('preset-select', 'breath-retention');
+    expect(jumpLabels()).toHaveLength(10);
+    expect(jumpLabels()).toContain('Hold · 0:57');
+  });
+
+  it('jumps from idle into a running session at the chosen phase', async () => {
+    await debugOn();
+    choose('preset-select', '467');
+    menuButton('Breathe out · start').click();
+    at(0);
+    expect(app().dataset.sessionState).toBe('running');
+    expect(text('#phase-label')).toBe('Breathe out');
+  });
+
+  it('jumps into the Breath Retention recovery with round 1 recorded', async () => {
+    await debugOn();
+    choose('preset-select', 'breath-retention');
+    menuButton('Recovery hold · start').click();
+    at(0);
+    expect(text('#phase-label')).toBe('Hold');
+    expect(rounds()).toEqual(['Round 1 01:00']);
+    expect(text('#reset')).toBe('Done');
+  });
+
+  it('plays a sound without touching the session', async () => {
+    const started: number[] = [];
+    class FakeContext {
+      currentTime = 0;
+      state = 'running';
+      destination = {};
+      createOscillator() {
+        return {
+          type: 'sine',
+          frequency: { value: 0 },
+          onended: null,
+          connect() {},
+          disconnect() {},
+          start(this: { frequency: { value: number } }) {
+            started.push(this.frequency.value);
+          },
+          stop() {},
+        };
+      }
+      createGain() {
+        const param = { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} };
+        return { gain: param, connect() {}, disconnect() {} };
+      }
+      resume() {
+        return Promise.resolve();
+      }
+    }
+    vi.stubGlobal('AudioContext', FakeContext);
+    try {
+      await debugOn();
+      menuButton('Breathe out tone').click();
+      at(0);
+      expect(started).toEqual([440]);
+      expect(app().dataset.sessionState).toBe('idle');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+});

@@ -265,3 +265,37 @@ describe('SoundScheduler with Breath Retention', () => {
     expect(fresh.filter((o) => MELODY.includes(o.frequency.value) && o.startAt! - 100 < 0.5)).toHaveLength(1);
   });
 });
+
+describe('preview (debug)', () => {
+  const play = (setupOn: boolean, ...args: Parameters<SoundScheduler['preview']>) => {
+    const ctx = new FakeAudioContext();
+    const scheduler = new SoundScheduler(() => ctx);
+    scheduler.setEnabled(setupOn);
+    scheduler.preview(...args);
+    return { ctx, scheduler };
+  };
+  const freqs = (ctx: FakeAudioContext) => ctx.oscillators.map((o) => o.frequency.value);
+
+  it('plays each sound at once', () => {
+    expect(freqs(play(true, 'phase', 'inhale').ctx)).toEqual([660]);
+    expect(freqs(play(true, 'phase', 'hold').ctx)).toEqual([550]);
+    expect(freqs(play(true, 'phase', 'exhale').ctx)).toEqual([440]);
+    expect(freqs(play(true, 'tick').ctx)).toEqual([1320]);
+    expect(freqs(play(true, 'breath').ctx)).toEqual([880]);
+    const { ctx } = play(true, 'phase', 'inhale');
+    expect(ctx.oscillators[0]!.startAt).toBe(100);
+  });
+
+  it('plays the minute melody rising, 0.2 s apart', () => {
+    const { ctx } = play(true, 'hold-minute');
+    expect(freqs(ctx)).toEqual([440, 550, 660]);
+    expect(starts(ctx, 100)).toEqual([0, 200, 400]);
+  });
+
+  it('plays with sound off and is not cut off by an idle sync', () => {
+    const { ctx, scheduler } = play(false, 'tick');
+    expect(ctx.oscillators).toHaveLength(1);
+    scheduler.sync(new BreathingEngine(preset467, new FakeClock()));
+    expect(ctx.oscillators[0]!.stops).toHaveLength(1); // only its own scheduled end
+  });
+});

@@ -727,3 +727,48 @@ describe('Breath Retention cues', () => {
     expect(cues.some((c) => c.type === 'hold-minute')).toBe(false);
   });
 });
+
+describe('startAt (debug)', () => {
+  it('starts a running session at the given session time from idle, running, or paused', () => {
+    const clock = new FakeClock();
+    const engine = new BreathingEngine(preset467, clock);
+    engine.startAt(4_000); // 4-6-7: the hold starts at 4 s
+    expect(engine.state).toBe('running');
+    expect(engine.sessionElapsedMs()).toBe(4_000);
+    expect(engine.signal()!.kind).toBe('hold');
+
+    clock.advance(1_000);
+    engine.startAt(10_000); // running: the exhale
+    expect(engine.signal()!.kind).toBe('exhale');
+    clock.advance(500);
+    expect(engine.sessionElapsedMs()).toBe(10_500);
+
+    engine.pause();
+    engine.startAt(0);
+    expect(engine.state).toBe('running');
+    expect(engine.signal()!.kind).toBe('inhale');
+  });
+
+  it('places a Breath Retention session in the recovery with a recorded hold', () => {
+    const clock = new FakeClock();
+    const engine = new BreathingEngine(applyTempo(breathRetentionPreset(20), tempoNormal), clock);
+    const recoveryStart = 20 * 3_500 + 60_000;
+    engine.startAt(recoveryStart + 1_750, [60_000]); // the recovery hold
+    const s = engine.signal()!;
+    expect([s.kind, s.role, s.completed]).toEqual(['hold', null, 1]);
+    expect(engine.holds).toEqual([60]);
+    expect(engine.cuesBetween(recoveryStart + 1_750, recoveryStart + 1_751)[0]).toEqual({
+      atMs: recoveryStart + 1_750,
+      type: 'phase',
+      kind: 'hold',
+    });
+  });
+
+  it('drops the holds of an earlier session', () => {
+    const clock = new FakeClock();
+    const engine = new BreathingEngine(applyTempo(breathRetentionPreset(20), tempoNormal), clock);
+    engine.startAt(0, [60_000]);
+    engine.startAt(0);
+    expect(engine.holds).toEqual([]);
+  });
+});

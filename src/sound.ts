@@ -197,9 +197,19 @@ export class SoundScheduler {
     });
   }
 
-  private play(cue: Cue, at: number): void {
+  /**
+   * Debug only: plays one sound at once, whatever the session state or the
+   * sound setting. Kept out of the queue, so `sync` and `stop` leave it be.
+   */
+  preview(type: Cue['type'], kind: PhaseKind = 'hold'): void {
+    this.unlock();
+    if (!this.ctx) return;
+    this.play({ atMs: 0, type, kind }, this.ctx.currentTime, false);
+  }
+
+  private play(cue: Cue, at: number, queued = true): void {
     // A start time just past plays at once (Web Audio clamps it to now).
-    this.voicesFor(cue).forEach((voice, i) => this.playVoice(voice, at + i * MELODY_STEP_S));
+    this.voicesFor(cue).forEach((voice, i) => this.playVoice(voice, at + i * MELODY_STEP_S, queued));
   }
 
   /** The voices a cue plays, in order (several only for the minute melody). */
@@ -216,7 +226,7 @@ export class SoundScheduler {
     }
   }
 
-  private playVoice(voice: Voice, at: number): void {
+  private playVoice(voice: Voice, at: number, queued: boolean): void {
     const ctx = this.ctx!;
     const osc = ctx.createOscillator();
     const gain = ctx.createGain();
@@ -228,7 +238,7 @@ export class SoundScheduler {
     osc.connect(gain);
     gain.connect(ctx.destination);
     const handle = { osc, gain };
-    this.pending.add(handle);
+    if (queued) this.pending.add(handle);
     osc.onended = () => {
       this.pending.delete(handle);
       gain.disconnect();

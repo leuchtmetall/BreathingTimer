@@ -115,6 +115,17 @@ export class BreathingEngine {
     this._state = 'running';
   }
 
+  /**
+   * Debug only: starts a fresh session from any state, already `sessionMs`
+   * into it, with `holdsMs` as the recorded holds of its first rounds.
+   */
+  startAt(sessionMs: number, holdsMs: readonly number[] = []): void {
+    this.baseMs = sessionMs;
+    this.holdsMs.splice(0, this.holdsMs.length, ...holdsMs);
+    this.anchorMs = this.clock.now();
+    this._state = 'running';
+  }
+
   pause(): void {
     if (this._state !== 'running') return;
     this.baseMs += this.clock.now() - this.anchorMs;

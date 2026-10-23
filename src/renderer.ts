@@ -347,7 +347,7 @@ function dimmed(brightColor: string): string {
   return DIM_VARIANTS[brightColor];
 }
 
-function runningLabel(kind: PhaseKind): string {
+export function runningLabel(kind: PhaseKind): string {
   switch (kind) {
     case 'inhale':
       return 'Breathe in';
