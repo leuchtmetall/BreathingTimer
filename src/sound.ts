@@ -65,9 +65,9 @@ const TICK_VOICE: Voice = {
 const BREATH_VOICE: Voice = {
   type: 'triangle',
   frequency: 880,
-  peak: 0.05,
+  peak: 0.2,
   attack: 0.004,
-  duration: 0.04,
+  duration: 0.05,
 };
 
 /** Full minute of a hold: the three phase tones rising, about 0.2 s apart. */
