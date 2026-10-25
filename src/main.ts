@@ -7,6 +7,7 @@ import { breathCountChoices, defaultBreathCount, presetChoices, type PresetChoic
 import { arcColor, Renderer, type RenderTargets } from './renderer';
 import { SoundScheduler } from './sound';
 import { NIGHT_QUERY, ThemeController } from './theme';
+import { formatSettings, parseSettings } from './url-settings';
 
 function requireTarget<T extends Element>(selector: string): T {
   const el = document.querySelector(selector);
@@ -15,6 +16,8 @@ function requireTarget<T extends Element>(selector: string): T {
 }
 
 const app = requireTarget<HTMLElement>('#app');
+// The starting settings; each one the URL leaves out or gets wrong keeps its default.
+const urlSettings = parseSettings(location.search);
 const presetSelector = requireTarget<HTMLSelectElement>('#preset-select');
 for (const choice of presetChoices) {
   const option = document.createElement('option');
@@ -23,7 +26,8 @@ for (const choice of presetChoices) {
   presetSelector.append(option);
 }
 const defaultPreset = presetChoices[0]!;
-presetSelector.value = defaultPreset.id;
+const startPreset = presetChoices.find(({ id }) => id === urlSettings.presetId) ?? defaultPreset;
+presetSelector.value = startPreset.id;
 
 const tempoSelector = requireTarget<HTMLSelectElement>('#tempo-select');
 
@@ -34,7 +38,8 @@ for (const breaths of breathCountChoices) {
   option.textContent = String(breaths);
   breathsSelector.append(option);
 }
-breathsSelector.value = String(defaultBreathCount);
+const startBreaths = urlSettings.breaths ?? defaultBreathCount;
+breathsSelector.value = String(startBreaths);
 
 const targets: RenderTargets = {
   ring: requireTarget<SVGCircleElement>('#ring'),
@@ -51,11 +56,12 @@ const targets: RenderTargets = {
 
 const renderer = new Renderer(targets);
 const sound = new SoundScheduler();
-let selectedPreset = defaultPreset;
+let selectedPreset = startPreset;
 /** Each pattern's last tempo choice while the page is open. */
 const selectedTempoIds = new Map<string, string>();
-let selectedTempo = showTempos(defaultPreset);
-let selectedBreaths = defaultBreathCount;
+if (urlSettings.tempoId) selectedTempoIds.set(startPreset.id, urlSettings.tempoId);
+let selectedTempo = showTempos(startPreset);
+let selectedBreaths = startBreaths;
 // Debug only: jumps start a fresh session at a point of the selected pattern.
 const debugMenu = DEBUG
   ? new DebugMenu(requireTarget<HTMLElement>('.display'), {
@@ -110,6 +116,29 @@ function selectPreset(id: string): void {
   selectedTempo = showTempos(choice);
   engine = createEngine();
   sync();
+  writeUrl();
+}
+
+/** Over http(s) the query follows the settings, so the address bar is always a bookmark. */
+function writeUrl(): void {
+  if (location.protocol !== 'http:' && location.protocol !== 'https:') return;
+  const search = formatSettings(
+    {
+      presetId: selectedPreset.id,
+      tempoId: selectedTempo.id,
+      breaths: selectedBreaths,
+      sound: sound.isEnabled,
+      theme: theme.override,
+    },
+    location.search,
+  );
+  if (search === location.search) return;
+  // Replaced, not pushed: Back leaves the app rather than stepping through settings.
+  try {
+    history.replaceState(history.state, '', search + location.hash);
+  } catch {
+    // A sandboxed page may refuse; the settings still apply to the open page.
+  }
 }
 
 /** index.html ships a static idle icon; create one where the head is absent (tests). */
@@ -151,6 +180,7 @@ breathsSelector.addEventListener('change', () => {
   selectedBreaths = breaths;
   engine = createEngine();
   sync();
+  writeUrl();
 });
 
 tempoSelector.addEventListener('change', () => {
@@ -163,6 +193,7 @@ tempoSelector.addEventListener('change', () => {
   selectedTempoIds.set(selectedPreset.id, choice.id);
   engine = createEngine();
   sync();
+  writeUrl();
 });
 
 const resetButton = button('reset');
@@ -208,25 +239,31 @@ button('breathe-in').addEventListener('click', () => {
 // Available in every session state; never touches the engine.
 const matchMedia = typeof window.matchMedia === 'function' ? (query: string) => window.matchMedia(query) : undefined;
 const themeToggle = button('theme-toggle');
-new ThemeController(document.documentElement, themeToggle, matchMedia);
+const theme = new ThemeController(document.documentElement, themeToggle, matchMedia, urlSettings.theme ?? null);
 
 // The tab icon follows the arc color; the palette itself changes with the theme.
 const favicon = new FaviconController(document.documentElement, faviconLink());
-themeToggle.addEventListener('click', () => favicon.refresh());
+// Runs after the controller's own click listener, so the override is current.
+themeToggle.addEventListener('click', () => {
+  favicon.refresh();
+  writeUrl();
+});
 matchMedia?.(NIGHT_QUERY).addEventListener?.('change', () => favicon.refresh());
 
-// On at load and never stored, so a reload turns it on again. Audio itself
-// starts on the first Start click (a user action). Never touches the engine:
-// available in every session state.
+// On at load unless the URL turns it off, and never stored, so a reload turns
+// it on again. Audio itself starts on the first Start click (a user action).
+// Never touches the engine: available in every session state.
 const soundToggle = button('sound-toggle');
-sound.setEnabled(true);
-soundToggle.setAttribute('aria-pressed', 'true');
+const soundOn = urlSettings.sound ?? true;
+sound.setEnabled(soundOn);
+soundToggle.setAttribute('aria-pressed', String(soundOn));
 soundToggle.addEventListener('click', () => {
   const on = !sound.isEnabled;
   if (on) sound.unlock();
   sound.setEnabled(on);
   soundToggle.setAttribute('aria-pressed', String(on));
   sound.sync(engine);
+  writeUrl();
 });
 
 // Hidden tabs get no frames and throttled timers; the queued horizon covers

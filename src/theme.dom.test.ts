@@ -221,6 +221,27 @@ describe('ThemeController', () => {
     expect(toggle.getAttribute('aria-pressed')).toBe('true');
   });
 
+  it('starts from a given override whatever the system preference', () => {
+    const { root, toggle } = fixture();
+    const controller = new ThemeController(root, toggle, fakeMatchMedia(false).matchMedia, 'night');
+    expect(controller.theme).toBe('night');
+    expect(controller.override).toBe('night');
+    expect(root.dataset.theme).toBe('night');
+    expect(toggle.getAttribute('aria-pressed')).toBe('true');
+    toggle.click();
+    expect(controller.override).toBe('day');
+  });
+
+  it('reports no override until toggled, then follows the toggle', () => {
+    const { root, toggle } = fixture();
+    const controller = new ThemeController(root, toggle, fakeMatchMedia(true).matchMedia);
+    expect(controller.override).toBeNull();
+    toggle.click();
+    expect(controller.override).toBe('day');
+    toggle.click();
+    expect(controller.override).toBe('night');
+  });
+
   it('never persists the override, so a fresh init follows the system again', () => {
     const setItem = vi.spyOn(Storage.prototype, 'setItem');
     const getItem = vi.spyOn(Storage.prototype, 'getItem');

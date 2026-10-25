@@ -12,17 +12,24 @@ type MatchMedia = (query: string) => MediaQueryList;
  * pressed state.
  *
  * The override is deliberately in memory only (never written to storage), so
- * a reload follows the system preference again.
+ * a reload follows the system preference again, unless the URL carries it
+ * (the starting override).
  */
 export class ThemeController {
   private readonly root: HTMLElement;
   private readonly toggleButton: HTMLButtonElement;
   private readonly query: MediaQueryList | null;
-  private override: Theme | null = null;
+  private currentOverride: Theme | null;
 
-  constructor(root: HTMLElement, toggleButton: HTMLButtonElement, matchMedia?: MatchMedia) {
+  constructor(
+    root: HTMLElement,
+    toggleButton: HTMLButtonElement,
+    matchMedia?: MatchMedia,
+    initialOverride: Theme | null = null,
+  ) {
     this.root = root;
     this.toggleButton = toggleButton;
+    this.currentOverride = initialOverride;
     this.query = nightQuery(matchMedia);
     // Keep the toggle's pressed state in step with a live system change.
     this.query?.addEventListener?.('change', () => this.reflect());
@@ -35,16 +42,21 @@ export class ThemeController {
   }
 
   get theme(): Theme {
-    return this.override ?? this.systemTheme;
+    return this.currentOverride ?? this.systemTheme;
+  }
+
+  /** The manual override; null while the system preference applies. */
+  get override(): Theme | null {
+    return this.currentOverride;
   }
 
   toggle(): void {
-    this.override = this.theme === 'night' ? 'day' : 'night';
+    this.currentOverride = this.theme === 'night' ? 'day' : 'night';
     this.reflect();
   }
 
   private reflect(): void {
-    if (this.override) this.root.dataset.theme = this.override;
+    if (this.currentOverride) this.root.dataset.theme = this.currentOverride;
     else delete this.root.dataset.theme;
     this.toggleButton.setAttribute('aria-pressed', String(this.theme === 'night'));
   }

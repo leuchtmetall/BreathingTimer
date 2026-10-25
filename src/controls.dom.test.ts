@@ -10,9 +10,13 @@ const css = readFileSync(join(import.meta.dirname, 'style.css'), 'utf8');
 let frame: FrameRequestCallback | null = null;
 let now: ReturnType<typeof vi.spyOn>;
 
-/** A fresh page and a fresh run of the app module (debug off unless mocked). */
-async function load(): Promise<void> {
+/**
+ * A fresh page and a fresh run of the app module (debug off unless mocked),
+ * opened at `/` plus `search` (a query and optional hash).
+ */
+async function load(search = ''): Promise<void> {
   vi.resetModules();
+  history.replaceState(null, '', `/${search}`);
   const html = readFileSync(join(appRoot, 'index.html'), 'utf8');
   document.body.innerHTML = html.slice(html.indexOf('<body>') + 6, html.indexOf('</body>'));
   globalThis.requestAnimationFrame = ((cb: FrameRequestCallback) => {
@@ -436,5 +440,121 @@ describe('Debug menu', () => {
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+});
+
+describe('Settings in the URL', () => {
+  const value = (id: string) => $<HTMLSelectElement>(`#${id}`).value;
+  const pressed = (id: string) => $(`#${id}`).getAttribute('aria-pressed');
+
+  it('takes the full setup from the query', async () => {
+    await load('?pattern=breath-retention&tempo=slow&breaths=40&sound=off&theme=night');
+    expect(value('preset-select')).toBe('breath-retention');
+    expect(app().dataset.preset).toBe('breath-retention');
+    expect(value('tempo-select')).toBe('slow');
+    expect(value('breaths-select')).toBe('40');
+    expect(pressed('sound-toggle')).toBe('false');
+    expect(document.documentElement.dataset.theme).toBe('night');
+    expect(pressed('theme-toggle')).toBe('true');
+    delete document.documentElement.dataset.theme;
+  });
+
+  it('applies a tempo without a pattern to the default pattern', async () => {
+    await load('?tempo=4');
+    expect(value('preset-select')).toBe('balanced');
+    expect(value('tempo-select')).toBe('4');
+  });
+
+  it('ignores an unknown pattern and keeps the other settings', async () => {
+    await load('?pattern=square&sound=off');
+    expect(value('preset-select')).toBe('balanced');
+    expect(value('tempo-select')).toBe('5.5');
+    expect(pressed('sound-toggle')).toBe('false');
+  });
+
+  it('keeps a breath count given with another pattern for Breath Retention', async () => {
+    await load('?pattern=box&breaths=40');
+    expect(value('preset-select')).toBe('box');
+    expect(value('tempo-select')).toBe('5');
+    choose('preset-select', 'breath-retention');
+    expect(value('breaths-select')).toBe('40');
+  });
+
+  it('plays no sound on Start when the query turns sound off', async () => {
+    const created = vi.fn();
+    vi.stubGlobal(
+      'AudioContext',
+      class {
+        constructor() {
+          created();
+        }
+      },
+    );
+    try {
+      await load('?sound=off');
+      click('start');
+      at(0);
+      at(6_000);
+      expect(created).not.toHaveBeenCalled();
+      expect(app().dataset.sessionState).toBe('running');
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
+  it('does not rewrite the URL at load', async () => {
+    await load();
+    expect(location.search).toBe('');
+    await load('?pattern=square');
+    expect(location.search).toBe('?pattern=square');
+  });
+
+  it('replaces the query on a pattern change without a history entry', async () => {
+    await load();
+    const entries = history.length;
+    choose('preset-select', 'box');
+    expect(location.search).toBe('?pattern=box&tempo=5');
+    choose('tempo-select', '7');
+    expect(location.search).toBe('?pattern=box&tempo=7');
+    expect(history.length).toBe(entries);
+  });
+
+  it('writes the breath count for Breath Retention', async () => {
+    await load();
+    choose('preset-select', 'breath-retention');
+    choose('breaths-select', '35');
+    expect(location.search).toBe('?pattern=breath-retention&tempo=normal&breaths=35');
+  });
+
+  it('restores a written query on reload', async () => {
+    await load();
+    choose('preset-select', '467');
+    choose('tempo-select', 'slow');
+    click('sound-toggle');
+    await load(location.search);
+    expect(value('preset-select')).toBe('467');
+    expect(value('tempo-select')).toBe('slow');
+    expect(pressed('sound-toggle')).toBe('false');
+  });
+
+  it('updates the query from the toggles during a session', async () => {
+    await load();
+    click('start');
+    at(1_000);
+    click('sound-toggle');
+    expect(location.search).toBe('?pattern=balanced&tempo=5.5&sound=off');
+    click('theme-toggle');
+    expect(location.search).toMatch(/^\?pattern=balanced&tempo=5\.5&sound=off&theme=(day|night)$/);
+    expect(new URLSearchParams(location.search).get('theme')).toBe(document.documentElement.dataset.theme);
+    at(2_000);
+    expect(app().dataset.sessionState).toBe('running');
+    delete document.documentElement.dataset.theme;
+  });
+
+  it('keeps other parameters and the hash', async () => {
+    await load('?ref=home#top');
+    choose('preset-select', 'box');
+    expect(location.search).toBe('?ref=home&pattern=box&tempo=5');
+    expect(location.hash).toBe('#top');
   });
 });

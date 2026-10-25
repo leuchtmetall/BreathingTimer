@@ -179,7 +179,11 @@ export interface PresetChoice {
 
 export const BREATH_RETENTION_ID = 'breath-retention';
 
-/** Ordered UI catalog; the first entry is the default selection. */
+/**
+ * Ordered UI catalog; the first entry is the default selection. Pattern and
+ * tempo ids are also the bookmark URL format (`?pattern=box&tempo=5`), so
+ * renaming one breaks old bookmarks.
+ */
 export const presetChoices: readonly PresetChoice[] = [
   {
     id: 'balanced',

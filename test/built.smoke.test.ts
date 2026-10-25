@@ -16,8 +16,10 @@ interface Harness {
   errors: string[];
 }
 
+const FILE_URL = 'file:///BreathingTimer/dist/index.html';
+
 /** Executes dist/index.html with a fake clock and manually stepped rAF. */
-function loadBuiltApp(): Harness {
+function loadBuiltApp(url = FILE_URL): Harness {
   const builtAt = statSync(distPath).mtimeMs;
   const sourceAt = sourcesMtime();
   if (builtAt < sourceAt) {
@@ -30,7 +32,7 @@ function loadBuiltApp(): Harness {
   const frameQueue: Frame[] = [];
 
   const dom = new JSDOM(html, {
-    url: 'file:///BreathingTimer/dist/index.html',
+    url,
     runScripts: 'dangerously',
     beforeParse(window) {
       window.performance.now = () => virtualNow;
@@ -76,6 +78,7 @@ function sourcesMtime(): number {
     'sound.ts',
     'debug.ts',
     'debug-menu.ts',
+    'url-settings.ts',
     'style.css',
   ]) {
     latest = Math.max(latest, statSync(join(base, f)).mtimeMs);
@@ -91,6 +94,20 @@ function choose467(app: ReturnType<typeof loadBuiltApp>): void {
 }
 
 describe('built single-file app (dist/index.html)', () => {
+  it('reads settings from a local file query and never rewrites the URL', () => {
+    const url = `${FILE_URL}?pattern=box&tempo=7`;
+    const app = loadBuiltApp(url);
+    const { document, location } = app.dom.window;
+    app.stepFrame();
+    expect(document.querySelector<HTMLSelectElement>('#preset-select')!.value).toBe('box');
+    expect(document.querySelector<HTMLSelectElement>('#tempo-select')!.value).toBe('7');
+    choose467(app);
+    (document.querySelector('#sound-toggle') as HTMLButtonElement).click();
+    expect(document.querySelector<HTMLSelectElement>('#preset-select')!.value).toBe('467');
+    expect(location.href).toBe(url);
+    expect(app.errors).toEqual([]);
+  });
+
   it('runs a complete session with zero runtime errors', () => {
     const app = loadBuiltApp();
     const { document } = app.dom.window;

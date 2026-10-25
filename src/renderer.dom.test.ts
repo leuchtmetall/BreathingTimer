@@ -881,7 +881,9 @@ describe('Sound switch wiring', () => {
     (document.querySelector('#sound-toggle') as HTMLButtonElement).click();
     expect(document.querySelector('#sound-toggle')!.getAttribute('aria-pressed')).toBe('false');
 
-    // Reload: fresh markup and a fresh run of the app module.
+    // Reload from a URL with no `sound` parameter (the written query would keep
+    // it off): fresh markup and a fresh run of the app module.
+    history.replaceState(null, '', '/');
     vi.resetModules();
     const html = readFileSync(join(appRoot, 'index.html'), 'utf8');
     document.body.innerHTML = html.slice(html.indexOf('<body>') + 6, html.indexOf('</body>'));
