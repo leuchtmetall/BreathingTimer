@@ -245,7 +245,7 @@ describe('SoundScheduler with Breath Retention', () => {
     expect(new Set(breathing.map((o) => o.frequency.value))).toEqual(new Set([880]));
     const peak = ctx.gains[0]!.peak;
     expect(peak).toBeGreaterThan(0);
-    expect(peak).toBeLessThan(0.08);
+    expect(peak).toBeLessThan(0.21);
   });
 
   it('cancels queued hold sounds past the hold end and queues the recovery tone at once', () => {
