@@ -9,6 +9,8 @@ const css = readFileSync(join(import.meta.dirname, 'style.css'), 'utf8');
 /** The animation loop's callback, run by hand to render a frame. */
 let frame: FrameRequestCallback | null = null;
 let now: ReturnType<typeof vi.spyOn>;
+/** Listeners the last app run put on the shared document, removed before the next run. */
+let documentListeners: Parameters<typeof document.addEventListener>[] = [];
 
 /**
  * A fresh page and a fresh run of the app module (debug off unless mocked),
@@ -23,6 +25,13 @@ async function load(search = ''): Promise<void> {
     frame = cb;
     return 0;
   }) as typeof requestAnimationFrame;
+  for (const args of documentListeners) document.removeEventListener(...args);
+  documentListeners = [];
+  const addEventListener = document.addEventListener.bind(document);
+  vi.spyOn(document, 'addEventListener').mockImplementation((...args) => {
+    documentListeners.push(args);
+    addEventListener(...args);
+  });
   await import('./main');
 }
 
@@ -179,6 +188,70 @@ describe('Pattern stepping buttons', () => {
     // Its own row: the controls after it change with the pattern and must not move it.
     expect(css).toMatch(/\.pattern-control \{[^}]*flex-basis: 100%/);
     expect($('.pattern-control').contains($('#preset-select'))).toBe(true);
+  });
+});
+
+describe('Arrow-key pattern stepping', () => {
+  const pattern = () => $<HTMLSelectElement>('#preset-select').value;
+  /** Presses `key` on `target` (the page by default); returns whether the app took it. */
+  const press = (key: string, init: KeyboardEventInit = {}, target: Element = document.body) => {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+    target.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+
+  it('steps forward with Right Arrow and backward with Left Arrow, wrapping around', async () => {
+    await load();
+    expect(press('ArrowRight')).toBe(true);
+    expect(pattern()).toBe('box');
+    expect(app().dataset.preset).toBe('box');
+    press('ArrowLeft');
+    press('ArrowLeft');
+    expect(pattern()).toBe('breath-retention');
+  });
+
+  it('works while a button has focus', async () => {
+    await load();
+    press('ArrowRight', {}, $('#preset-next'));
+    expect(pattern()).toBe('box');
+  });
+
+  it('is unavailable during a session and available again after reset', async () => {
+    await load();
+    click('start');
+    expect(press('ArrowRight')).toBe(false);
+    press('ArrowLeft');
+    expect(pattern()).toBe('balanced');
+    click('reset');
+    press('ArrowRight');
+    expect(pattern()).toBe('box');
+  });
+
+  it('leaves modified arrow keys to the browser', async () => {
+    await load();
+    for (const modifier of ['altKey', 'ctrlKey', 'metaKey', 'shiftKey']) {
+      expect(press('ArrowLeft', { [modifier]: true })).toBe(false);
+      expect(press('ArrowRight', { [modifier]: true })).toBe(false);
+    }
+    expect(pattern()).toBe('balanced');
+  });
+
+  it('leaves arrow keys in form fields to the field', async () => {
+    await load();
+    for (const id of ['preset-select', 'tempo-select', 'breaths-select']) {
+      expect(press('ArrowRight', {}, $(`#${id}`))).toBe(false);
+    }
+    expect(pattern()).toBe('balanced');
+  });
+
+  it('ignores Up and Down Arrow and keys already handled', async () => {
+    await load();
+    expect(press('ArrowUp')).toBe(false);
+    expect(press('ArrowDown')).toBe(false);
+    const handled = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true });
+    handled.preventDefault();
+    document.body.dispatchEvent(handled);
+    expect(pattern()).toBe('balanced');
   });
 });
 

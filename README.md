@@ -5,7 +5,7 @@
 
 A guided breathing timer (Balanced Breathing, Box Breathing, 4-6-7 Breathing, and Breath Retention) with tempo control, night mode, count tick marks, and optional sound. The production build is a single self-contained `index.html` that works offline, straight from a local file.
 
-The arrows inside the pattern selector step through the patterns without opening the list. The Tempo selector depends on the pattern: Slow, Normal, or Fast for 4-6-7 Breathing and Breath Retention, and the phase length for Balanced Breathing (4 to 7 seconds) and Box Breathing (3 to 8 seconds). Each pattern remembers its tempo while the page is open.
+The arrows inside the pattern selector step through the patterns without opening the list; the Left and Right Arrow keys do the same (outside the selectors, and not during a session). The Tempo selector depends on the pattern: Slow, Normal, or Fast for 4-6-7 Breathing and Breath Retention, and the phase length for Balanced Breathing (4 to 7 seconds) and Box Breathing (3 to 8 seconds). Each pattern remembers its tempo while the page is open.
 
 Breath Retention runs rounds of fast breathing (20 to 40 breaths), a breath hold you end with **Breathe in**, and a short recovery breath with a 15 s hold. The hold times of finished rounds are listed below the circle until the next session starts.
 

@@ -171,6 +171,18 @@ const presetNext = button('preset-next');
 presetPrev.addEventListener('click', () => stepPreset(-1));
 presetNext.addEventListener('click', () => stepPreset(1));
 
+// Left/Right Arrow work exactly when the stepping buttons do. Modified keys
+// stay with the browser, and form fields keep their own arrow keys.
+document.addEventListener('keydown', (event) => {
+  if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
+  const target = event.target;
+  if (target instanceof HTMLElement && (target.matches('input, select, textarea') || target.isContentEditable)) return;
+  const step = event.key === 'ArrowLeft' ? presetPrev : event.key === 'ArrowRight' ? presetNext : null;
+  if (!step || step.disabled) return;
+  event.preventDefault();
+  stepPreset(step === presetPrev ? -1 : 1);
+});
+
 breathsSelector.addEventListener('change', () => {
   const breaths = Number(breathsSelector.value);
   if (engine.state !== 'idle' || !breathCountChoices.includes(breaths)) {
