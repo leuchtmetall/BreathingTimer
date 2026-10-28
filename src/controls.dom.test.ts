@@ -189,6 +189,31 @@ describe('Pattern stepping buttons', () => {
     expect(css).toMatch(/\.pattern-control \{[^}]*flex-basis: 100%/);
     expect($('.pattern-control').contains($('#preset-select'))).toBe(true);
   });
+
+  it('adds bottom space below the controls only in the home-screen web app', () => {
+    expect(css).toMatch(/:root\[data-standalone\] \{\s*--controls-bottom-extra: 2\.3rem;/);
+    // Both the phone and the wide-screen bottom padding add the extra space.
+    const uses = css.match(/padding[^;]*\+\s*var\(--controls-bottom-extra, 0rem\)\s*\)/g) ?? [];
+    expect(uses).toHaveLength(2);
+    // Outside standalone the variable is unset, so the base padding applies.
+    expect(css.match(/--controls-bottom-extra:/g)).toHaveLength(1);
+  });
+
+  it('marks the page as a home-screen web app only when iOS says so', async () => {
+    try {
+      Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });
+      await load();
+      expect(document.documentElement.dataset.standalone).toBe('');
+
+      delete document.documentElement.dataset.standalone;
+      Object.defineProperty(navigator, 'standalone', { value: false, configurable: true });
+      await load();
+      expect(document.documentElement.dataset.standalone).toBeUndefined();
+    } finally {
+      delete (navigator as Navigator & { standalone?: boolean }).standalone;
+      delete document.documentElement.dataset.standalone;
+    }
+  });
 });
 
 describe('Arrow-key pattern stepping', () => {
@@ -390,7 +415,7 @@ describe('Breath Retention controls', () => {
     // Hidden by default; laid out for a running or paused Breath Retention session.
     expect(css).toMatch(/\.breathe-in-row \{\s*display: none;\s*flex-basis: 100%;/);
     expect(css).toMatch(
-      /\.app\[data-preset="breath-retention"\]:not\(\[data-session-state="idle"\]\) \.breathe-in-row \{\s*display: flex;/,
+      /\.app\[data-preset="breath-retention"\]:not\(\[data-session-state="idle"\]\)\s+\.breathe-in-row \{\s*display: flex;/,
     );
     // Within the row, the button keeps its space while hidden outside the hold.
     expect(css).toMatch(/#breathe-in \{\s*visibility: hidden;/);

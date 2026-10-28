@@ -383,7 +383,18 @@ button,
   /* Buttons line up with the selects, not with their caption labels. */
   align-items: flex-end;
   gap: 0.75rem;
-  padding: max(1rem, env(safe-area-inset-bottom)) 1rem 1rem;
+  padding: 1rem 1rem
+    calc(
+      max(1rem, env(safe-area-inset-bottom)) +
+        var(--controls-bottom-extra, 0rem)
+    );
+}
+
+/* Home-screen web app (marked by script; iOS does not match
+   display-mode: standalone without a manifest): no Safari toolbar below the
+   page, so the controls get their own distance from the bottom edge. */
+:root[data-standalone] {
+  --controls-bottom-extra: 2.3rem;
 }
 
 .controls button {
@@ -512,7 +523,8 @@ button,
   justify-content: center;
 }
 
-.app[data-preset="breath-retention"]:not([data-session-state="idle"]) .breathe-in-row {
+.app[data-preset="breath-retention"]:not([data-session-state="idle"])
+  .breathe-in-row {
   display: flex;
 }
 
@@ -531,6 +543,9 @@ button,
 
 @media (min-width: 700px) {
   .controls {
-    padding-bottom: 2rem;
+    padding-bottom: calc(
+      max(2rem, env(safe-area-inset-bottom)) +
+        var(--controls-bottom-extra, 0rem)
+    );
   }
 }

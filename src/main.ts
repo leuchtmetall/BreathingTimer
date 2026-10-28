@@ -16,6 +16,8 @@ function requireTarget<T extends Element>(selector: string): T {
 }
 
 const app = requireTarget<HTMLElement>('#app');
+// iOS home-screen web app: the stylesheet adds space below the controls.
+if ((navigator as Navigator & { standalone?: boolean }).standalone) document.documentElement.dataset.standalone = '';
 // The starting settings; each one the URL leaves out or gets wrong keeps its default.
 const urlSettings = parseSettings(location.search);
 const presetSelector = requireTarget<HTMLSelectElement>('#preset-select');
