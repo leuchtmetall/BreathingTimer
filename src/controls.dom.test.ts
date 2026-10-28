@@ -199,6 +199,17 @@ describe('Pattern stepping buttons', () => {
     expect(css.match(/--controls-bottom-extra:/g)).toHaveLength(1);
   });
 
+  it('keeps the page no taller than the visible viewport, without bounce', () => {
+    // .app alone sets the page height; 100% on html/body would be the larger,
+    // toolbar-less viewport on iOS and leave empty space to scroll into.
+    const root = css.slice(css.indexOf('html,\nbody {'), css.indexOf('}', css.indexOf('html,\nbody {')));
+    expect(root).not.toMatch(/\bheight:/);
+    expect(root).toContain('overscroll-behavior: none');
+    expect(css).toMatch(/\.app \{[^}]*height: 100dvh;/);
+    // Content that does not fit must stay reachable.
+    expect(css).not.toMatch(/(html|body)[^{]*\{[^}]*overflow(-y)?: hidden/);
+  });
+
   it('marks the page as a home-screen web app only when iOS says so', async () => {
     try {
       Object.defineProperty(navigator, 'standalone', { value: true, configurable: true });

@@ -95,9 +95,12 @@
   box-sizing: border-box;
 }
 
+/* No height here: .app alone sets the page height, so the page is never
+   taller than the visible viewport (100% is the larger, toolbar-less one on
+   iOS). Overscroll off: no iOS bounce, and no pull-to-refresh. */
 html,
 body {
-  height: 100%;
+  overscroll-behavior: none;
 }
 
 body {
