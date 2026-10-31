@@ -106,7 +106,7 @@ describe('Done label and summary', () => {
     expect(text('#phase-label')).toBe('Ready');
     expect(text('#session-stats')).toBe('');
     expect(text('#summary-stats')).toBe('Cycles: 1 · Time: 00:20');
-    expect($('#summary-stats').closest('.display')).toBeNull();
+    expect($('#summary-stats').closest('.overlay')).toBeNull();
     expect(text('#reset')).toBe('Reset');
 
     click('start');
@@ -209,6 +209,25 @@ describe('Pattern stepping buttons', () => {
     expect(css).toMatch(/\.app \{[^}]*height: 100dvh;/);
     // Content that does not fit must stay reachable.
     expect(css).not.toMatch(/(html|body)[^{]*\{[^}]*overflow(-y)?: hidden/);
+  });
+
+  it('keeps the results out of the layout that centers the circle', async () => {
+    await load();
+    expect($('.summary').parentElement).toBe($('.display'));
+    const summary = css.slice(css.indexOf('\n.summary {'), css.indexOf('}', css.indexOf('\n.summary {')));
+    expect(summary).toContain('position: absolute');
+    // Capped to the free space below the circle; longer lists scroll in there.
+    expect(summary).toContain('max-height: calc(50% - var(--ring-reach))');
+    expect(summary).toContain('overflow-y: auto');
+    expect(css).toMatch(/\.display > svg \{\s*width: var\(--circle-size\);\s*height: var\(--circle-size\);/);
+  });
+
+  it('puts the results beside the circle in short viewports that are not clearly portrait', () => {
+    const media = '@media (min-aspect-ratio: 9/10) and (max-height: 720px) {';
+    expect(css).toContain(media);
+    const rule = css.slice(css.indexOf(media), css.indexOf('}', css.indexOf(media)));
+    expect(rule).toContain('width: calc(50% - var(--ring-reach))');
+    expect(rule).toContain('max-height: 100%');
   });
 
   it('marks the page as a home-screen web app only when iOS says so', async () => {
@@ -424,11 +443,9 @@ describe('Breath Retention controls', () => {
     expect(row.parentElement).toBe($('.controls'));
     expect(row.parentElement!.firstElementChild).toBe(row);
     expect(row.contains($('#reset'))).toBe(false);
-    // Hidden by default; laid out for a running or paused Breath Retention session.
+    // Hidden by default; laid out whenever Breath Retention is selected, idle too.
     expect(css).toMatch(/\.breathe-in-row \{\s*display: none;\s*flex-basis: 100%;/);
-    expect(css).toMatch(
-      /\.app\[data-preset='breath-retention'\]:not\(\[data-session-state='idle'\]\)\s+\.breathe-in-row \{\s*display: flex;/,
-    );
+    expect(css).toMatch(/\.app\[data-preset='breath-retention'\]\s+\.breathe-in-row \{\s*display: flex;/);
     // Within the row, the button keeps its space while hidden outside the hold.
     expect(css).toMatch(/#breathe-in \{\s*visibility: hidden;/);
     expect(css).not.toMatch(/#breathe-in \{\s*display:/);
@@ -515,8 +532,9 @@ describe('Debug menu', () => {
     expect(text('#reset')).toBe('Done');
   });
 
-  it('plays a sound without touching the session', async () => {
-    const started: number[] = [];
+  /** A fake audio output; `started` lists the pitch of every tone played, `stopped` counts the cancelled ones. */
+  const fakeAudio = () => {
+    const sounds = { started: [] as number[], stopped: 0 };
     class FakeContext {
       currentTime = 0;
       state = 'running';
@@ -529,9 +547,11 @@ describe('Debug menu', () => {
           connect() {},
           disconnect() {},
           start(this: { frequency: { value: number } }) {
-            started.push(this.frequency.value);
+            sounds.started.push(this.frequency.value);
           },
-          stop() {},
+          stop() {
+            sounds.stopped++;
+          },
         };
       }
       createGain() {
@@ -546,15 +566,91 @@ describe('Debug menu', () => {
       }
     }
     vi.stubGlobal('AudioContext', FakeContext);
+    return sounds;
+  };
+
+  it('plays a sound without touching the session', async () => {
+    const sounds = fakeAudio();
     try {
       await debugOn();
       menuButton('Breathe out tone').click();
       at(0);
-      expect(started).toEqual([440]);
+      expect(sounds.started).toEqual([440]);
       expect(app().dataset.sessionState).toBe('idle');
     } finally {
       vi.unstubAllGlobals();
     }
+  });
+
+  describe('results entries', () => {
+    const resultLabels = () =>
+      Array.from(menu()!.querySelectorAll('[data-group="results"] button'), (b) => b.textContent);
+
+    it('follow the selected pattern', async () => {
+      await debugOn();
+      expect(resultLabels()).toEqual(['3 cycles']);
+      choose('preset-select', 'breath-retention');
+      expect(resultLabels()).toEqual(['1 round', '3 rounds', '12 rounds']);
+    });
+
+    it('end in idle with the stats below the circle', async () => {
+      await debugOn();
+      choose('preset-select', '467');
+      menuButton('3 cycles').click();
+      expect(app().dataset.sessionState).toBe('idle');
+      expect(text('#phase-label')).toBe('Ready');
+      expect(text('#session-stats')).toBe('');
+      expect(text('#summary-stats')).toMatch(/^Cycles: 3 · Time: /);
+      expect(rounds()).toEqual([]);
+    });
+
+    it('list the rounds for Breath Retention, and Start clears them', async () => {
+      await debugOn();
+      choose('preset-select', 'breath-retention');
+      menuButton('3 rounds').click();
+      expect(app().dataset.sessionState).toBe('idle');
+      expect(text('#summary-stats')).toMatch(/^Rounds: 3 · Time: /);
+      expect(rounds()).toEqual(['Round 1 01:00', 'Round 2 01:15', 'Round 3 01:30']);
+      menuButton('12 rounds').click();
+      expect(rounds()).toHaveLength(12);
+
+      click('start');
+      expect(text('#summary-stats')).toBe('');
+      expect(rounds()).toEqual([]);
+    });
+
+    it('replace a running session and its rounds', async () => {
+      await debugOn();
+      choose('preset-select', 'breath-retention');
+      menuButton('Recovery hold · start').click();
+      at(0);
+      expect(rounds()).toEqual(['Round 1 01:00']);
+      menuButton('3 rounds').click();
+      expect(app().dataset.sessionState).toBe('idle');
+      expect(text('#summary-stats')).toMatch(/^Rounds: 3 · /);
+      expect(rounds()).toHaveLength(3);
+    });
+
+    it('play no sound, and cancel the queued sounds of a running session', async () => {
+      const sounds = fakeAudio();
+      try {
+        await debugOn();
+        menuButton('3 cycles').click();
+        at(1_000);
+        expect(sounds.started).toEqual([]);
+
+        click('start');
+        at(1_000);
+        const queued = sounds.started.length;
+        expect(queued).toBeGreaterThan(0);
+        menuButton('3 cycles').click();
+        expect(sounds.stopped).toBeGreaterThan(0);
+        at(60_000);
+        expect(sounds.started).toHaveLength(queued);
+      } finally {
+        vi.unstubAllGlobals();
+      }
+    });
   });
 });
 

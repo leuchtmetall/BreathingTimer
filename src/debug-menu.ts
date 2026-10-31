@@ -15,6 +15,10 @@ const BEFORE_END_MS = 3_000;
 const BEFORE_MINUTE_MS = 57_000;
 /** Breath Retention: the hold recorded for round 1 when jumping into the recovery. */
 const DEBUG_HOLD_MS = 60_000;
+/** Results entries: each further round's hold is this much longer than the last. */
+const RESULT_HOLD_STEP_MS = 15_000;
+/** Results entries land this far into the next cycle or round, safely past the float boundary. */
+const RESULT_MARGIN_MS = 1_000;
 
 /**
  * Jump entries for a tempo-resolved preset, in its first cycle or round: each
@@ -51,6 +55,26 @@ export function jumpTargets(preset: Preset): JumpTarget[] {
   return targets;
 }
 
+/**
+ * Sessions to end at once, to show their results: 3 cycles, or for Breath
+ * Retention 1, 3, and 12 rounds (the last one to overflow the rounds list).
+ */
+export function resultTargets(preset: Preset): JumpTarget[] {
+  const fixedMs = preset.phases.reduce((sum, p) => (p.role === 'retention' ? sum : sum + p.seconds * 1000), 0);
+  if (!preset.phases.some(({ role }) => role === 'retention')) {
+    return [{ label: '3 cycles', sessionMs: 3 * fixedMs + RESULT_MARGIN_MS, holdsMs: [] }];
+  }
+  return [1, 3, 12].map((rounds) => {
+    const holdsMs = Array.from({ length: rounds }, (_, i) => DEBUG_HOLD_MS + i * RESULT_HOLD_STEP_MS);
+    const heldMs = holdsMs.reduce((sum, ms) => sum + ms, 0);
+    return {
+      label: rounds === 1 ? '1 round' : `${rounds} rounds`,
+      sessionMs: rounds * fixedMs + heldMs + RESULT_MARGIN_MS,
+      holdsMs,
+    };
+  });
+}
+
 /** A sound the debug menu can play: a cue type and, for phase tones, its kind. */
 export interface SoundChoice {
   readonly label: string;
@@ -70,15 +94,17 @@ export const soundChoices: readonly SoundChoice[] = [
 
 export interface DebugMenuActions {
   jump(target: JumpTarget): void;
+  results(target: JumpTarget): void;
   preview(choice: SoundChoice): void;
 }
 
 /**
  * The collapsed debug menu, appended to `parent`. Only built in debug mode;
- * `rebuild` refreshes the jump entries for a newly selected preset.
+ * `rebuild` refreshes the jump and results entries for a newly selected preset.
  */
 export class DebugMenu {
   private readonly jumps: HTMLElement;
+  private readonly results: HTMLElement;
 
   constructor(
     parent: HTMLElement,
@@ -89,15 +115,19 @@ export class DebugMenu {
     const summary = document.createElement('summary');
     summary.textContent = 'Debug';
     this.jumps = group('Jump');
+    this.results = group('Results');
     const sounds = group('Sounds');
     sounds.append(...soundChoices.map((choice) => menuButton(choice.label, () => actions.preview(choice))));
-    menu.append(summary, this.jumps.parentElement!, sounds.parentElement!);
+    menu.append(summary, this.jumps.parentElement!, this.results.parentElement!, sounds.parentElement!);
     parent.append(menu);
   }
 
   rebuild(preset: Preset): void {
     this.jumps.replaceChildren(
       ...jumpTargets(preset).map((target) => menuButton(target.label, () => this.actions.jump(target))),
+    );
+    this.results.replaceChildren(
+      ...resultTargets(preset).map((target) => menuButton(target.label, () => this.actions.results(target))),
     );
   }
 }

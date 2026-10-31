@@ -133,6 +133,9 @@ button,
 }
 
 .display {
+  --circle-size: min(90vmin, 480px);
+  /* Outer edge of the backdrop: radius 40 + half its stroke of 16, of a 116 viewBox. */
+  --ring-reach: calc(var(--circle-size) * 48 / 116);
   flex: 1;
   display: flex;
   align-items: center;
@@ -143,8 +146,8 @@ button,
 
 /* SVG scales with the viewport; capped for large screens. */
 .display > svg {
-  width: min(90vmin, 480px);
-  height: min(90vmin, 480px);
+  width: var(--circle-size);
+  height: var(--circle-size);
 }
 
 .ring-backdrop {
@@ -339,8 +342,16 @@ button,
   letter-spacing: 0.02em;
 }
 
-/* Below the circle: stats after the session ends, and finished rounds. */
+/* Below the circle: stats after the session ends, and finished rounds. Out of
+   the flow, so they never move the circle, and capped to the free space below
+   it, where a long list scrolls instead of reaching the circle. */
 .summary {
+  position: absolute;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  max-height: calc(50% - var(--ring-reach));
+  overflow-y: auto;
   display: flex;
   flex-direction: column;
   align-items: center;
@@ -369,6 +380,20 @@ button,
   justify-content: center;
   gap: 0.15rem 1.25rem;
   color: var(--text);
+}
+
+/* Short viewports that are not clearly portrait have too little free space below
+   the circle, so the results go beside it. Centered by transform: in a fixed-height box, centering would cut
+   off the top of a list that overflows. */
+@media (min-aspect-ratio: 9/10) and (max-height: 720px) {
+  .summary {
+    right: auto;
+    top: 50%;
+    bottom: auto;
+    width: calc(50% - var(--ring-reach));
+    max-height: 100%;
+    transform: translateY(-50%);
+  }
 }
 
 .controls {
@@ -505,16 +530,16 @@ button,
 }
 
 /* Breathe in sits on its own row above the preset controls. The row is laid
-   out for the whole Breath Retention session and the button only turns
-   visible in the hold, so the circle never jumps when the hold starts or
-   ends. Idle and the other presets get no row at all. */
+   out whenever Breath Retention is selected and the button only turns visible
+   in the hold, so the circle never jumps on Start, on Done, or when the hold
+   starts or ends. The other presets get no row at all. */
 .breathe-in-row {
   display: none;
   flex-basis: 100%;
   justify-content: center;
 }
 
-.app[data-preset='breath-retention']:not([data-session-state='idle']) .breathe-in-row {
+.app[data-preset='breath-retention'] .breathe-in-row {
   display: flex;
 }
 

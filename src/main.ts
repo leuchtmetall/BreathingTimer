@@ -64,7 +64,8 @@ const selectedTempoIds = new Map<string, string>();
 if (urlSettings.tempoId) selectedTempoIds.set(startPreset.id, urlSettings.tempoId);
 let selectedTempo = showTempos(startPreset);
 let selectedBreaths = startBreaths;
-// Debug only: jumps start a fresh session at a point of the selected pattern.
+// Debug only: jumps start a fresh session at a point of the selected pattern;
+// results entries end one at once, the same way Done does.
 const debugMenu = DEBUG
   ? new DebugMenu(requireTarget<HTMLElement>('.display'), {
       jump({ sessionMs, holdsMs }) {
@@ -74,6 +75,10 @@ const debugMenu = DEBUG
         // From the landing point itself, so its phase tone still plays.
         sound.restartAt(engine, sessionMs);
         sync();
+      },
+      results({ sessionMs, holdsMs }) {
+        engine.startAt(sessionMs, holdsMs);
+        endSession();
       },
       preview: ({ type, kind }) => sound.preview(type, kind),
     })
@@ -237,13 +242,7 @@ if (DEBUG) {
   button('pause').remove();
   button('resume').remove();
 }
-// Reset and Done: the last stats move below the circle, the rounds stay.
-resetButton.addEventListener('click', () => {
-  update();
-  renderer.showSummary();
-  engine.reset();
-  sync();
-});
+resetButton.addEventListener('click', endSession);
 // Ends the hold; queued hold sounds go, and the recovery tone plays at once.
 button('breathe-in').addEventListener('click', () => {
   const holdEndMs = engine.endRetention();
@@ -291,6 +290,14 @@ setInterval(update, 500);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') sound.recover();
 });
+
+/** Reset and Done: the last stats move below the circle, the rounds stay. */
+function endSession(): void {
+  update();
+  renderer.showSummary();
+  engine.reset();
+  sync();
+}
 
 /** Control visibility + a first frame render on every state transition. */
 function sync(): void {

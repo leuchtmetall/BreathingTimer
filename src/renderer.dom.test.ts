@@ -988,7 +988,7 @@ describe('Breath Retention display (DOM)', () => {
     expect(text('#session-stats')).toBe('');
     expect(text('#summary-stats')).toBe('Rounds: 2 · Time: 06:15');
     expect(rounds()).toHaveLength(2);
-    expect(document.querySelector('#rounds')!.closest('.display')).toBeNull();
+    expect(document.querySelector('#rounds')!.closest('.overlay')).toBeNull();
 
     renderer.clearSummary();
     expect(text('#summary-stats')).toBe('');

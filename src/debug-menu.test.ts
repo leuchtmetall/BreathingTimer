@@ -1,12 +1,14 @@
 import { describe, expect, it } from 'vitest';
-import { jumpTargets } from './debug-menu';
+import { type JumpTarget, jumpTargets, resultTargets } from './debug-menu';
 import { BreathingEngine } from './engine';
 import {
   applyTempo,
   balancedPreset,
   boxPreset,
   breathRetentionPreset,
+  type Preset,
   preset467,
+  presetChoices,
   tempoFast,
   tempoNormal,
 } from './presets';
@@ -86,5 +88,36 @@ describe('jumpTargets', () => {
     const at = (label: string) => targets.find((t) => t.label === label)!.sessionMs;
     expect(at('Recovery breathe in · −3 s')).toBe(at('Recovery breathe in · start'));
     expect(at('Recovery breathe out · −3 s')).toBe(at('Recovery breathe out · start'));
+  });
+});
+
+describe('resultTargets', () => {
+  /** What a target's session has completed, as the engine sees it. */
+  const completedAt = (preset: Preset, { sessionMs, holdsMs }: JumpTarget) => {
+    const engine = new BreathingEngine(preset);
+    engine.startAt(sessionMs, holdsMs);
+    return { completed: engine.signalAt(sessionMs).completed, holds: engine.holds };
+  };
+
+  it('offers 3 cycles for the cyclic patterns, at every tempo', () => {
+    for (const choice of presetChoices.filter(({ id }) => id !== 'breath-retention')) {
+      for (const tempo of choice.tempos) {
+        const preset = tempo.build(20);
+        const targets = resultTargets(preset);
+        expect(targets.map((t) => t.label)).toEqual(['3 cycles']);
+        expect(completedAt(preset, targets[0]!)).toEqual({ completed: 3, holds: [] });
+      }
+    }
+  });
+
+  it('offers 1, 3, and 12 rounds for Breath Retention, at every tempo', () => {
+    const choice = presetChoices.find(({ id }) => id === 'breath-retention')!;
+    for (const tempo of choice.tempos) {
+      const preset = tempo.build(20);
+      const targets = resultTargets(preset);
+      expect(targets.map((t) => t.label)).toEqual(['1 round', '3 rounds', '12 rounds']);
+      expect(targets.map((t) => completedAt(preset, t).completed)).toEqual([1, 3, 12]);
+      expect(completedAt(preset, targets[1]!).holds).toEqual([60, 75, 90]);
+    }
   });
 });
