@@ -33,7 +33,7 @@
    neutrals), every value dimmer than its day counterpart. It applies when the
    user forces it, or when the system prefers dark and the user has not forced
    day. The two blocks must stay identical; a DOM test enforces it. */
-:root[data-theme="night"] {
+:root[data-theme='night'] {
   --bg: #0a0705;
   --panel: #16100c;
   --panel-active: #16100c;
@@ -63,7 +63,7 @@
 }
 
 @media (prefers-color-scheme: dark) {
-  :root:not([data-theme="day"]) {
+  :root:not([data-theme='day']) {
     --bg: #0a0705;
     --panel: #16100c;
     --panel-active: #16100c;
@@ -107,7 +107,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+  font-family: system-ui, -apple-system, 'Segoe UI', sans-serif;
 }
 
 button,
@@ -255,7 +255,7 @@ button,
   fill: currentColor;
 }
 
-.icon-toggle[aria-pressed="true"] {
+.icon-toggle[aria-pressed='true'] {
   color: var(--color-out);
 }
 
@@ -268,7 +268,7 @@ button,
   visibility: hidden;
 }
 
-.icon-toggle[aria-pressed="true"] .sound-waves {
+.icon-toggle[aria-pressed='true'] .sound-waves {
   visibility: visible;
 }
 
@@ -494,13 +494,13 @@ button,
 /* Control visibility by session state (spec: idle -> start; running ->
    reset, plus Breathe in during the Breath Retention hold; pause and resume
    exist only in debug mode: running -> + pause, paused -> resume + reset). */
-.app[data-session-state="idle"] #pause,
-.app[data-session-state="idle"] #resume,
-.app[data-session-state="idle"] #reset,
-.app[data-session-state="running"] #start,
-.app[data-session-state="running"] #resume,
-.app[data-session-state="paused"] #start,
-.app[data-session-state="paused"] #pause {
+.app[data-session-state='idle'] #pause,
+.app[data-session-state='idle'] #resume,
+.app[data-session-state='idle'] #reset,
+.app[data-session-state='running'] #start,
+.app[data-session-state='running'] #resume,
+.app[data-session-state='paused'] #start,
+.app[data-session-state='paused'] #pause {
   display: none;
 }
 
@@ -514,7 +514,7 @@ button,
   justify-content: center;
 }
 
-.app[data-preset="breath-retention"]:not([data-session-state="idle"]) .breathe-in-row {
+.app[data-preset='breath-retention']:not([data-session-state='idle']) .breathe-in-row {
   display: flex;
 }
 
@@ -522,12 +522,12 @@ button,
   visibility: hidden;
 }
 
-.app[data-session-state="running"][data-role="retention"] #breathe-in {
+.app[data-session-state='running'][data-role='retention'] #breathe-in {
   visibility: visible;
 }
 
 /* The breath count only applies to Breath Retention. */
-.app:not([data-preset="breath-retention"]) .breath-retention-only {
+.app:not([data-preset='breath-retention']) .breath-retention-only {
   display: none;
 }
 

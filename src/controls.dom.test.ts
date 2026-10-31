@@ -83,8 +83,8 @@ describe('Debug mode', () => {
     click('resume');
     expect(app().dataset.sessionState).toBe('running');
     // The visibility CSS still hides each in the other state.
-    expect(css).toContain('.app[data-session-state="running"] #resume');
-    expect(css).toContain('.app[data-session-state="paused"] #pause');
+    expect(css).toContain(".app[data-session-state='running'] #resume");
+    expect(css).toContain(".app[data-session-state='paused'] #pause");
   });
 });
 
@@ -386,7 +386,7 @@ describe('Breath Retention controls', () => {
     const tempoLabels = () => Array.from($<HTMLSelectElement>('#tempo-select').options, (o) => o.textContent);
     choose('preset-select', '467');
     expect(app().dataset.preset).toBe('467');
-    expect(css).toContain('.app:not([data-preset="breath-retention"]) .breath-retention-only');
+    expect(css).toContain(".app:not([data-preset='breath-retention']) .breath-retention-only");
     expect($('#breaths-select').closest('.breath-retention-only')).not.toBeNull();
     expect($('#breaths-select').closest('.controls')).not.toBeNull();
     expect(document.querySelector('#hold-sound-select')).toBeNull();
@@ -427,7 +427,7 @@ describe('Breath Retention controls', () => {
     // Hidden by default; laid out for a running or paused Breath Retention session.
     expect(css).toMatch(/\.breathe-in-row \{\s*display: none;\s*flex-basis: 100%;/);
     expect(css).toMatch(
-      /\.app\[data-preset="breath-retention"\]:not\(\[data-session-state="idle"\]\)\s+\.breathe-in-row \{\s*display: flex;/,
+      /\.app\[data-preset='breath-retention'\]:not\(\[data-session-state='idle'\]\)\s+\.breathe-in-row \{\s*display: flex;/,
     );
     // Within the row, the button keeps its space while hidden outside the hold.
     expect(css).toMatch(/#breathe-in \{\s*visibility: hidden;/);
@@ -437,7 +437,7 @@ describe('Breath Retention controls', () => {
   it('runs a round: breathing, the hold, Breathe in, recovery, Done', async () => {
     await startRetention();
     expect(css).toMatch(
-      /\.app\[data-session-state="running"\]\[data-role="retention"\] #breathe-in \{\s*visibility: visible;/,
+      /\.app\[data-session-state='running'\]\[data-role='retention'\] #breathe-in \{\s*visibility: visible;/,
     );
     at(16 * 3_500 + 500);
     expect(text('#countdown')).toBe('17/20');
