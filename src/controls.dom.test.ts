@@ -11,6 +11,8 @@ let frame: FrameRequestCallback | null = null;
 let now: ReturnType<typeof vi.spyOn>;
 /** Listeners the last app run put on the shared document, removed before the next run. */
 let documentListeners: Parameters<typeof document.addEventListener>[] = [];
+/** The real method, taken before any spy: a repeated `load()` in one test would otherwise bind the spy to itself. */
+const addDocumentListener = document.addEventListener.bind(document);
 
 /**
  * A fresh page and a fresh run of the app module (debug off unless mocked),
@@ -27,10 +29,9 @@ async function load(search = ''): Promise<void> {
   }) as typeof requestAnimationFrame;
   for (const args of documentListeners) document.removeEventListener(...args);
   documentListeners = [];
-  const addEventListener = document.addEventListener.bind(document);
   vi.spyOn(document, 'addEventListener').mockImplementation((...args) => {
     documentListeners.push(args);
-    addEventListener(...args);
+    addDocumentListener(...args);
   });
   await import('./main');
 }
