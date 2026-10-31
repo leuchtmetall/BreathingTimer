@@ -228,6 +228,8 @@ if (DEBUG) {
     sync();
   });
   button('resume').addEventListener('click', () => {
+    // Inside the click: pausing released audio.
+    if (sound.isEnabled) sound.unlock();
     engine.resume();
     sync();
   });
@@ -265,7 +267,7 @@ themeToggle.addEventListener('click', () => {
 matchMedia?.(NIGHT_QUERY).addEventListener?.('change', () => favicon.refresh());
 
 // On at load unless the URL turns it off, and never stored, so a reload turns
-// it on again. Audio itself starts on the first Start click (a user action).
+// it on again. Audio itself starts only with a running session, from a user action.
 // Never touches the engine: available in every session state.
 const soundToggle = button('sound-toggle');
 const soundOn = urlSettings.sound ?? true;
@@ -273,7 +275,7 @@ sound.setEnabled(soundOn);
 soundToggle.setAttribute('aria-pressed', String(soundOn));
 soundToggle.addEventListener('click', () => {
   const on = !sound.isEnabled;
-  if (on) sound.unlock();
+  if (on && engine.state === 'running') sound.unlock();
   sound.setEnabled(on);
   soundToggle.setAttribute('aria-pressed', String(on));
   sound.sync(engine);

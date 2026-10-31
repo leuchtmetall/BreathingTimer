@@ -805,6 +805,10 @@ describe('Sound switch wiring', () => {
     resume() {
       return Promise.resolve();
     }
+    close() {
+      this.state = 'closed';
+      return Promise.resolve();
+    }
   }
   const cancelled = (o: { stops: number[] }) => o.stops.includes(0);
 
@@ -850,10 +854,12 @@ describe('Sound switch wiring', () => {
     const before = [label(), stats()];
     expect(first.every(cancelled)).toBe(true);
 
-    click('resume');
-    const second = ctx.oscillators.slice(first.length);
+    click('resume'); // pausing released audio, so this is a new context
+    const resumed = FakeAudioContext.instances.at(-1)!;
+    expect(resumed).not.toBe(ctx);
+    const second = [...resumed.oscillators];
     // Next cue is the hold tick at 6 s: 0.5 s after the current position.
-    expect(second[0]!.startAt).toBeCloseTo(ctx.currentTime + 0.5, 6);
+    expect(second[0]!.startAt).toBeCloseTo(resumed.currentTime + 0.5, 6);
 
     toggle.click(); // off, while running
     expect(toggle.getAttribute('aria-pressed')).toBe('false');
@@ -861,11 +867,12 @@ describe('Sound switch wiring', () => {
     click('pause');
     expect([label(), stats()]).toEqual(before);
     click('resume');
-    expect(ctx.oscillators).toHaveLength(first.length + second.length); // silent
+    expect(FakeAudioContext.instances.at(-1)).toBe(resumed); // silent, and no audio taken
+    expect(resumed.oscillators).toHaveLength(second.length);
 
     toggle.click(); // on again, while running
     expect(toggle.getAttribute('aria-pressed')).toBe('true');
-    const third = ctx.oscillators.slice(first.length + second.length);
+    const third = FakeAudioContext.instances.at(-1)!.oscillators;
     expect(third.length).toBeGreaterThan(0);
     expect(document.querySelector('#app')!.getAttribute('data-session-state')).toBe('running');
     click('reset');

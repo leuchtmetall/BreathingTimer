@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BreathingEngine, type Clock } from './engine';
 import { applyTempo, breathRetentionPreset, preset467, tempoNormal } from './presets';
 import {
@@ -54,6 +54,7 @@ class FakeAudioContext implements AudioContextLike {
   destination = {};
   oscillators: FakeOscillator[] = [];
   gains: FakeGain[] = [];
+  closes = 0;
   createOscillator(): FakeOscillator {
     const osc = new FakeOscillator();
     this.oscillators.push(osc);
@@ -66,6 +67,11 @@ class FakeAudioContext implements AudioContextLike {
   }
   resume(): Promise<void> {
     this.state = 'running';
+    return Promise.resolve();
+  }
+  close(): Promise<void> {
+    this.closes += 1;
+    this.state = 'closed';
     return Promise.resolve();
   }
 }
@@ -144,6 +150,7 @@ describe('SoundScheduler', () => {
     scheduler.sync(engine); // paused -> stop
     for (const osc of queued) expect(osc.stops).toContain(0);
 
+    scheduler.unlock(); // the Resume click: pausing released audio
     engine.resume();
     clock.t = 9_000; // wall time while paused does not count
     ctx.currentTime = 200;
@@ -170,6 +177,7 @@ describe('SoundScheduler', () => {
     engine.start();
     scheduler.sync(engine);
     expect(ctx.oscillators).toHaveLength(0);
+    scheduler.unlock(); // the sound switch click during a running session
     scheduler.setEnabled(true);
     scheduler.sync(engine);
     expect(ctx.oscillators.length).toBeGreaterThan(0);
@@ -201,6 +209,132 @@ describe('SoundScheduler', () => {
       scheduler.recover();
       scheduler.stop();
     }).not.toThrow();
+  });
+});
+
+describe('SoundScheduler releasing audio', () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.useRealTimers();
+  });
+
+  /** A running session with sound on, on a context per unlock, with a fake audio session. */
+  const running = () => {
+    const session = { type: 'auto' };
+    vi.stubGlobal('navigator', { audioSession: session });
+    const contexts: FakeAudioContext[] = [];
+    const clock = new FakeClock();
+    const engine = new BreathingEngine(applyTempo(preset467, tempoNormal), clock);
+    const scheduler = new SoundScheduler(() => {
+      const ctx = new FakeAudioContext();
+      contexts.push(ctx);
+      return ctx;
+    });
+    scheduler.unlock();
+    scheduler.setEnabled(true);
+    engine.start();
+    scheduler.sync(engine);
+    return { contexts, session, clock, engine, scheduler };
+  };
+
+  it('holds the exclusive audio session while a session runs', () => {
+    const { contexts, session, engine, scheduler } = running();
+    scheduler.sync(engine);
+    expect(contexts[0]!.closes).toBe(0);
+    expect(session.type).toBe('playback');
+  });
+
+  it.each([
+    ['Reset', (engine: BreathingEngine) => engine.reset()],
+    ['Pause', (engine: BreathingEngine) => engine.pause()],
+    ['sound off', (_: BreathingEngine, scheduler: SoundScheduler) => scheduler.setEnabled(false)],
+  ])('releases audio once on %s', (_name, act) => {
+    const { contexts, session, engine, scheduler } = running();
+    act(engine, scheduler);
+    scheduler.sync(engine);
+    scheduler.sync(engine);
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0]!.closes).toBe(1);
+    expect(session.type).toBe('auto');
+  });
+
+  it('holds nothing when a session runs with sound off', () => {
+    const contexts: FakeAudioContext[] = [];
+    const engine = new BreathingEngine(preset467, new FakeClock());
+    const scheduler = new SoundScheduler(() => {
+      contexts.push(new FakeAudioContext());
+      return contexts.at(-1)!;
+    });
+    engine.start();
+    scheduler.sync(engine);
+    expect(contexts).toHaveLength(0);
+  });
+
+  it('takes no audio back when the page returns to view while idle', async () => {
+    const { contexts, session, engine, scheduler } = running();
+    engine.reset();
+    scheduler.sync(engine);
+    const resume = vi.spyOn(contexts[0]!, 'resume');
+    scheduler.recover();
+    await Promise.resolve();
+    expect(resume).not.toHaveBeenCalled();
+    expect(contexts).toHaveLength(1);
+    expect(session.type).toBe('auto');
+  });
+
+  it('queues on a new context, from its own clock, after a release', () => {
+    const { contexts, session, clock, engine, scheduler } = running();
+    engine.pause();
+    scheduler.sync(engine);
+    clock.t = 1_000;
+    scheduler.unlock();
+    engine.resume();
+    contexts[1]!.currentTime = 7;
+    clock.t = 3_500; // 2.5 s into the inhale
+    scheduler.sync(engine);
+    expect(contexts).toHaveLength(2);
+    expect(session.type).toBe('playback');
+    // Next cues: tick at 3 s, hold phase at 4 s -> 0.5 s and 1.5 s from now.
+    expect(starts(contexts[1]!, 7).slice(0, 2)).toEqual([500, 1_500]);
+  });
+
+  it('holds audio through an idle preview, then releases it', () => {
+    vi.useFakeTimers();
+    const session = { type: 'auto' };
+    vi.stubGlobal('navigator', { audioSession: session });
+    const ctx = new FakeAudioContext();
+    const engine = new BreathingEngine(preset467, new FakeClock());
+    const scheduler = new SoundScheduler(() => ctx);
+    scheduler.preview('hold-minute'); // ends 0.58 s after it starts
+    scheduler.preview('tick'); // a shorter sound must not cut the melody off
+    scheduler.sync(engine);
+    vi.advanceTimersByTime(580);
+    scheduler.sync(engine);
+    expect(ctx.closes).toBe(0);
+    expect(ctx.oscillators.every((o) => !o.stops.includes(0))).toBe(true);
+    vi.runAllTimers();
+    expect(ctx.closes).toBe(1);
+    expect(session.type).toBe('auto');
+  });
+
+  it('keeps audio after a preview while a session needs it', () => {
+    vi.useFakeTimers();
+    const { contexts, session, scheduler } = running();
+    scheduler.preview('tick');
+    vi.runAllTimers();
+    expect(contexts[0]!.closes).toBe(0);
+    expect(session.type).toBe('playback');
+  });
+
+  it('releases after a preview when the session was reset while it played', () => {
+    vi.useFakeTimers();
+    const { contexts, engine, scheduler } = running();
+    scheduler.preview('tick');
+    engine.reset();
+    scheduler.sync(engine);
+    expect(contexts[0]!.closes).toBe(0);
+    vi.runAllTimers();
+    expect(contexts[0]!.closes).toBe(1);
   });
 });
 

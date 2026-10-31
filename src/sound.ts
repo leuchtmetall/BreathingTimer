@@ -34,6 +34,7 @@ export interface AudioContextLike {
   createOscillator(): OscillatorLike;
   createGain(): GainLike;
   resume(): Promise<void>;
+  close(): Promise<void>;
 }
 
 /** A synthesized sound: a short enveloped oscillator, no audio files. */
@@ -78,6 +79,8 @@ const MELODY_STEP_S = 0.2;
 export const HORIZON_MS = 180_000;
 /** Top up once the queued window has shrunk by this much. */
 const TOP_UP_MS = 10_000;
+/** Debug previews hold audio this long past their end: a new context starts late. */
+const PREVIEW_MARGIN_MS = 300;
 
 /** Real Web Audio, or null where the API does not exist (jsdom, old browsers). */
 export function browserAudioContext(): AudioContextLike | null {
@@ -87,11 +90,17 @@ export function browserAudioContext(): AudioContextLike | null {
   return typeof Ctor === 'function' ? (new Ctor() as unknown as AudioContextLike) : null;
 }
 
+function setAudioSessionType(type: 'auto' | 'playback'): void {
+  const session = (navigator as { audioSession?: { type: string } }).audioSession;
+  if (session) session.type = type;
+}
+
 /**
  * Queues the engine's cues ahead on the audio clock, so sounds keep their
  * timing when frames stop (hidden tab, locked screen). Session time maps to
  * audio time at each top-up; only new cues are mapped, so clock drift cannot
- * build up beyond one window.
+ * build up beyond one window. Audio is held only while a running session has
+ * sound on: a page holding it stops other apps' audio on iOS.
  */
 export class SoundScheduler {
   private readonly createContext: () => AudioContextLike | null;
@@ -103,6 +112,8 @@ export class SoundScheduler {
   /** Just-passed session ms the next queueing starts from (see `restartAt`). */
   private restartFromMs: number | null = null;
   private readonly pending = new Set<{ osc: OscillatorLike; gain: GainLike }>();
+  /** Debug previews still playing; audio is kept until they end. */
+  private previews = 0;
 
   constructor(createContext: () => AudioContextLike | null = browserAudioContext) {
     this.createContext = createContext;
@@ -121,10 +132,10 @@ export class SoundScheduler {
       this.ctx = this.createContext();
       // Newer iOS Safari: play through the silent switch and keep playing
       // while the screen is locked where the platform allows it.
-      const session = (navigator as { audioSession?: { type: string } }).audioSession;
-      if (this.ctx && session) session.type = 'playback';
+      if (this.ctx) setAudioSessionType('playback');
     }
-    if (this.ctx && this.ctx.state !== 'running') void this.ctx.resume();
+    // Rejects if audio is released first, and then there is nothing left to do.
+    if (this.ctx && this.ctx.state !== 'running') this.ctx.resume().catch(() => {});
   }
 
   setEnabled(on: boolean): void {
@@ -145,16 +156,17 @@ export class SoundScheduler {
 
   /**
    * Keeps the queue matching the engine: tops up while running and enabled,
-   * otherwise stops every pending sound. Cheap when nothing is due, so it
-   * runs every frame and from a background-tolerant timer.
+   * otherwise stops every pending sound and releases audio. Cheap when nothing
+   * is due, so it runs every frame and from a background-tolerant timer.
    */
   sync(engine: BreathingEngine): void {
     if (engine !== this.engine) {
       this.stop();
       this.engine = engine;
     }
-    if (!this.enabled || !this.ctx || engine.state !== 'running') {
+    if (!this.ctx || !this.sessionNeedsAudio) {
       this.stop();
+      this.release();
       return;
     }
     const nowMs = engine.sessionElapsedMs();
@@ -190,21 +202,46 @@ export class SoundScheduler {
    */
   recover(): void {
     const { ctx, engine } = this;
-    if (!ctx || !engine || ctx.state === 'running') return;
-    void ctx.resume().then(() => {
-      this.stop();
-      this.sync(engine);
-    });
+    if (!ctx || !engine || !this.sessionNeedsAudio || ctx.state === 'running') return;
+    ctx.resume().then(
+      () => {
+        this.stop();
+        this.sync(engine);
+      },
+      () => {}, // Released meanwhile: the next unlock starts afresh.
+    );
   }
 
   /**
    * Debug only: plays one sound at once, whatever the session state or the
-   * sound setting. Kept out of the queue, so `sync` and `stop` leave it be.
+   * sound setting. Kept out of the queue, so `sync` and `stop` leave it be,
+   * and audio is released afterward unless a session needs it. Timed, because
+   * `onended` never fires in an interrupted context.
    */
   preview(type: Cue['type'], kind: PhaseKind = 'hold'): void {
     this.unlock();
     if (!this.ctx) return;
-    this.play({ atMs: 0, type, kind }, this.ctx.currentTime, false);
+    const cue: Cue = { atMs: 0, type, kind };
+    this.play(cue, this.ctx.currentTime, false);
+    const voices = this.voicesFor(cue);
+    const lengthS = (voices.length - 1) * MELODY_STEP_S + voices.at(-1)!.duration;
+    this.previews += 1;
+    setTimeout(() => {
+      this.previews -= 1;
+      if (!this.sessionNeedsAudio) this.release();
+    }, lengthS * 1000 + PREVIEW_MARGIN_MS);
+  }
+
+  private get sessionNeedsAudio(): boolean {
+    return this.enabled && this.engine?.state === 'running';
+  }
+
+  /** Lets other apps' audio play again; the next `unlock` starts a new context. */
+  private release(): void {
+    if (!this.ctx || this.previews > 0) return;
+    void this.ctx.close();
+    this.ctx = null;
+    setAudioSessionType('auto');
   }
 
   private play(cue: Cue, at: number, queued = true): void {

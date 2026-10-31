@@ -72,7 +72,7 @@ npx vitest run src   # unit and DOM tests only
 npx vitest           # watch mode
 ```
 
-The DOM tests run in jsdom, which has no Web Audio, so sound is tested against a fake audio context. Background and locked-screen playback still need a manual check on real devices.
+The DOM tests run in jsdom, which has no Web Audio, so sound is tested against a fake audio context. Background and locked-screen playback, and whether other apps' audio keeps playing, still need a manual check on real devices.
 
 ## Project layout
 

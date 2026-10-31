@@ -539,6 +539,9 @@ describe('Debug menu', () => {
       resume() {
         return Promise.resolve();
       }
+      close() {
+        return Promise.resolve();
+      }
     }
     vi.stubGlobal('AudioContext', FakeContext);
     try {
@@ -666,5 +669,115 @@ describe('Settings in the URL', () => {
     choose('preset-select', 'box');
     expect(location.search).toBe('?ref=home&pattern=box&tempo=5');
     expect(location.hash).toBe('#top');
+  });
+});
+
+describe('Holding audio', () => {
+  /** Web Audio stand-in recording every context and what it was asked to play. */
+  class RecordingContext {
+    static instances: RecordingContext[] = [];
+    currentTime = 0;
+    state = 'running';
+    destination = {};
+    played = 0;
+    closes = 0;
+    constructor() {
+      RecordingContext.instances.push(this);
+    }
+    createOscillator() {
+      const count = () => (this.played += 1);
+      return {
+        type: 'sine',
+        frequency: { value: 0 },
+        onended: null,
+        connect() {},
+        disconnect() {},
+        start: count,
+        stop() {},
+      };
+    }
+    createGain() {
+      const param = { setValueAtTime() {}, linearRampToValueAtTime() {}, exponentialRampToValueAtTime() {} };
+      return { gain: param, connect() {}, disconnect() {} };
+    }
+    resume() {
+      return Promise.resolve();
+    }
+    close() {
+      this.closes += 1;
+      return Promise.resolve();
+    }
+  }
+  const contexts = RecordingContext.instances;
+
+  beforeEach(() => {
+    contexts.length = 0;
+    vi.stubGlobal('AudioContext', RecordingContext);
+  });
+  afterEach(() => {
+    vi.unstubAllGlobals();
+  });
+
+  it('takes no audio when the page opens', async () => {
+    await load();
+    at(0);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(contexts).toHaveLength(0);
+  });
+
+  it('takes no audio when sound is turned on while idle, only from Start', async () => {
+    await load('?sound=off');
+    click('sound-toggle');
+    at(0);
+    expect(contexts).toHaveLength(0);
+    click('start');
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0]!.played).toBeGreaterThan(0);
+  });
+
+  it('takes audio when sound is turned on during a running session', async () => {
+    await load('?sound=off');
+    click('start');
+    expect(contexts).toHaveLength(0);
+    at(1_000);
+    click('sound-toggle');
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0]!.played).toBeGreaterThan(0);
+  });
+
+  it('releases audio on Pause and queues on a new context on Resume', async () => {
+    vi.doMock('./debug', () => ({ DEBUG: true }));
+    await load();
+    click('start');
+    at(1_000);
+    click('pause');
+    expect(contexts[0]!.closes).toBe(1);
+    click('resume');
+    expect(contexts).toHaveLength(2);
+    expect(contexts[1]!.played).toBeGreaterThan(0);
+  });
+
+  it('releases audio on Reset, stays released, and plays through a new context on the next Start', async () => {
+    await load();
+    click('start');
+    at(1_000);
+    click('reset');
+    at(2_000);
+    document.dispatchEvent(new Event('visibilitychange'));
+    expect(contexts).toHaveLength(1);
+    expect(contexts[0]!.closes).toBe(1);
+    click('start');
+    expect(contexts).toHaveLength(2);
+    expect(contexts[1]!.played).toBeGreaterThan(0);
+  });
+
+  it('releases audio when sound is turned off during a running session', async () => {
+    await load();
+    click('start');
+    at(1_000);
+    click('sound-toggle');
+    expect(contexts[0]!.closes).toBe(1);
+    at(2_000);
+    expect(app().dataset.sessionState).toBe('running');
   });
 });
