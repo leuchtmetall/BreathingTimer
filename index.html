@@ -16,13 +16,7 @@
     <main class="app" id="app" data-session-state="idle">
       <section class="display">
         <svg viewBox="0 0 116 116" role="img" aria-label="Breathing indicator">
-          <circle
-            id="ring-backdrop"
-            class="ring-backdrop"
-            cx="58"
-            cy="58"
-            r="40"
-          />
+          <circle id="ring-backdrop" class="ring-backdrop" cx="58" cy="58" r="40" />
           <circle class="ring-track" cx="58" cy="58" r="40" />
           <g id="ticks" class="ticks"></g>
           <circle id="ring" cx="58" cy="58" r="40" />
@@ -44,10 +38,7 @@
           >
             <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
               <path d="M4 9h4l5-4v14l-5-4H4z" />
-              <path
-                class="sound-waves"
-                d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12"
-              />
+              <path class="sound-waves" d="M16 8.5a5 5 0 0 1 0 7M18.5 6a8.5 8.5 0 0 1 0 12" />
             </svg>
           </button>
           <button
@@ -77,23 +68,13 @@
         <div class="preset-control pattern-control">
           <label for="preset-select">Breathing pattern</label>
           <div class="stepper">
-            <button
-              id="preset-prev"
-              class="step"
-              type="button"
-              aria-label="Previous pattern"
-            >
+            <button id="preset-prev" class="step" type="button" aria-label="Previous pattern">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                 <path d="M14.5 6l-6 6 6 6" />
               </svg>
             </button>
             <select id="preset-select"></select>
-            <button
-              id="preset-next"
-              class="step"
-              type="button"
-              aria-label="Next pattern"
-            >
+            <button id="preset-next" class="step" type="button" aria-label="Next pattern">
               <svg viewBox="0 0 24 24" aria-hidden="true" focusable="false">
                 <path d="M9.5 6l6 6-6 6" />
               </svg>
@@ -104,10 +85,7 @@
           <span>Tempo</span>
           <select id="tempo-select"></select>
         </label>
-        <label
-          class="preset-control breath-retention-only"
-          for="breaths-select"
-        >
+        <label class="preset-control breath-retention-only" for="breaths-select">
           <span>Breaths</span>
           <select id="breaths-select"></select>
         </label>

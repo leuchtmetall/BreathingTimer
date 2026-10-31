@@ -68,7 +68,13 @@ describe('formatSettings', () => {
     for (const preset of presetChoices) {
       for (const tempo of preset.tempos) {
         for (const breaths of breathCountChoices) {
-          const settings: CurrentSettings = { presetId: preset.id, tempoId: tempo.id, breaths, sound: false, theme: 'day' };
+          const settings: CurrentSettings = {
+            presetId: preset.id,
+            tempoId: tempo.id,
+            breaths,
+            sound: false,
+            theme: 'day',
+          };
           const parsed = parseSettings(formatSettings(settings, ''));
           expect(parsed.presetId).toBe(preset.id);
           expect(parsed.tempoId).toBe(tempo.id);

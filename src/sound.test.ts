@@ -1,13 +1,7 @@
 import { afterEach, describe, expect, it, vi } from 'vitest';
 import { BreathingEngine, type Clock } from './engine';
 import { applyTempo, breathRetentionPreset, preset467, tempoNormal } from './presets';
-import {
-  HORIZON_MS,
-  SoundScheduler,
-  type AudioContextLike,
-  type GainLike,
-  type OscillatorLike,
-} from './sound';
+import { HORIZON_MS, SoundScheduler, type AudioContextLike, type GainLike, type OscillatorLike } from './sound';
 
 class FakeClock implements Clock {
   t = 0;

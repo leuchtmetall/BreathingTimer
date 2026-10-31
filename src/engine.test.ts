@@ -150,8 +150,7 @@ describe('BreathingEngine', () => {
     let prevPosition = -1;
     for (let ms = 0; ms < engine.cycleMs; ms += 113) {
       const s = engine.signalAt(ms)!;
-      const position =
-        s.cycles * engine.cycleMs + offsets[s.phaseIndex] + s.phaseElapsed * 1000;
+      const position = s.cycles * engine.cycleMs + offsets[s.phaseIndex] + s.phaseElapsed * 1000;
       expect(position).toBeGreaterThan(prevPosition);
       prevPosition = position;
     }
@@ -258,19 +257,9 @@ describe('Box Breathing presets', () => {
   const boxChoices = choice('box').tempos.map(({ label, build }) => ({ label, preset: build(defaultBreathCount) }));
 
   it.each(boxChoices)('$label defines four equal-duration phases with correct fill', ({ preset }) => {
-    expect(preset.phases.map(({ kind }) => kind)).toEqual([
-      'inhale',
-      'hold',
-      'exhale',
-      'hold',
-    ]);
+    expect(preset.phases.map(({ kind }) => kind)).toEqual(['inhale', 'hold', 'exhale', 'hold']);
     const seconds = preset.phases[0]!.seconds;
-    expect(preset.phases.map(({ seconds: duration }) => duration)).toEqual([
-      seconds,
-      seconds,
-      seconds,
-      seconds,
-    ]);
+    expect(preset.phases.map(({ seconds: duration }) => duration)).toEqual([seconds, seconds, seconds, seconds]);
     expect(preset.phases.map(({ fill }) => fill)).toEqual([
       [0, 1],
       [1, 1],
@@ -321,7 +310,9 @@ describe('Box Breathing presets', () => {
   });
 
   it.each(boxPhaseChoices)('runs %i s phases of as many counts, one count per real second, with ticks', (n) => {
-    const preset = choice('box').tempos.find(({ id }) => id === String(n))!.build(defaultBreathCount);
+    const preset = choice('box')
+      .tempos.find(({ id }) => id === String(n))!
+      .build(defaultBreathCount);
     expect(preset.name).toBe('Box Breathing');
     expect(preset.phases.map(({ seconds }) => seconds)).toEqual([n, n, n, n]);
     expect(preset.countSeconds).toBe(1);
@@ -346,7 +337,9 @@ describe('Balanced Breathing presets', () => {
   });
 
   it.each(balancedPhaseChoices)('runs %s s in and out with no holds', (n) => {
-    const preset = choice('balanced').tempos.find(({ id }) => id === String(n))!.build(defaultBreathCount);
+    const preset = choice('balanced')
+      .tempos.find(({ id }) => id === String(n))!
+      .build(defaultBreathCount);
     expect(preset.name).toBe('Balanced Breathing');
     expect(preset.phases.map(({ kind, seconds, fill }) => [kind, seconds, fill])).toEqual([
       ['inhale', n, [0, 1]],
@@ -390,7 +383,9 @@ describe('Tempo', () => {
       expect(choice(id).defaultTempoId).toBe('normal');
     }
     expect(choice('467').tempos.map(({ label }) => label)).toEqual(tempoChoices.map(({ label }) => label));
-    const fast = choice('467').tempos.find(({ id }) => id === 'fast')!.build(defaultBreathCount);
+    const fast = choice('467')
+      .tempos.find(({ id }) => id === 'fast')!
+      .build(defaultBreathCount);
     expect(fast.countSeconds).toBeCloseTo(0.8, 10);
   });
 
@@ -402,9 +397,7 @@ describe('Tempo', () => {
           preset.phases.map(({ kind, fill }) => [kind, fill]),
         );
         const ratio = scaled.phases[0]!.seconds / preset.phases[0]!.seconds;
-        scaled.phases.forEach((phase, i) =>
-          expect(phase.seconds / preset.phases[i]!.seconds).toBeCloseTo(ratio, 10),
-        );
+        scaled.phases.forEach((phase, i) => expect(phase.seconds / preset.phases[i]!.seconds).toBeCloseTo(ratio, 10));
       }
     }
   });
@@ -494,7 +487,7 @@ describe('cuesBetween', () => {
     expect(cues.filter((c) => c.type === 'tick').map((c) => c.atMs / 1000)).toEqual([
       1, 2, 3, 5, 6, 7, 8, 9, 11, 12, 13, 14, 15, 16,
     ]);
-    expect(cues.map((c) => c.atMs)).toEqual([...cues.map((c) => c.atMs)].sort((a, b) => a - b));
+    expect(cues.map((c) => c.atMs)).toEqual(cues.map((c) => c.atMs).sort((a, b) => a - b));
   });
 
   it('crosses several cycle boundaries', () => {
@@ -703,7 +696,7 @@ describe('Breath Retention cues', () => {
     // Recovery hold ticks once per real second, 14 inside the 15 s hold.
     const ticks = cues.filter((c) => c.type === 'tick');
     expect(ticks.map((c) => c.atMs - holdEnd - 1_750)).toEqual(Array.from({ length: 14 }, (_, i) => (i + 1) * 1_000));
-    expect(cues.map((c) => c.atMs)).toEqual([...cues.map((c) => c.atMs)].sort((a, b) => a - b));
+    expect(cues.map((c) => c.atMs)).toEqual(cues.map((c) => c.atMs).sort((a, b) => a - b));
   });
 
   it('lists full hold minutes up to the window end while the hold is running', () => {

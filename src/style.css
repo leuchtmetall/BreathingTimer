@@ -107,11 +107,7 @@ body {
   margin: 0;
   background: var(--bg);
   color: var(--text);
-  font-family:
-    system-ui,
-    -apple-system,
-    "Segoe UI",
-    sans-serif;
+  font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
 }
 
 button,
@@ -184,11 +180,7 @@ button,
    renderer as --tick-phase), lightened toward the text color so they stand
    out on the dim track. Follows night mode through both variables. */
 .ticks line {
-  stroke: color-mix(
-    in srgb,
-    var(--tick-phase, var(--color-idle)) 75%,
-    var(--text)
-  );
+  stroke: color-mix(in srgb, var(--tick-phase, var(--color-idle)) 75%, var(--text));
   stroke-linecap: round;
 }
 
@@ -386,11 +378,7 @@ button,
   /* Buttons line up with the selects, not with their caption labels. */
   align-items: flex-end;
   gap: 0.75rem;
-  padding: 1rem 1rem
-    calc(
-      max(1rem, env(safe-area-inset-bottom)) +
-        var(--controls-bottom-extra, 0rem)
-    );
+  padding: 1rem 1rem calc(max(1rem, env(safe-area-inset-bottom)) + var(--controls-bottom-extra, 0rem));
 }
 
 /* Home-screen web app (marked by script; iOS does not match
@@ -526,8 +514,7 @@ button,
   justify-content: center;
 }
 
-.app[data-preset="breath-retention"]:not([data-session-state="idle"])
-  .breathe-in-row {
+.app[data-preset="breath-retention"]:not([data-session-state="idle"]) .breathe-in-row {
   display: flex;
 }
 
@@ -546,9 +533,6 @@ button,
 
 @media (min-width: 700px) {
   .controls {
-    padding-bottom: calc(
-      max(2rem, env(safe-area-inset-bottom)) +
-        var(--controls-bottom-extra, 0rem)
-    );
+    padding-bottom: calc(max(2rem, env(safe-area-inset-bottom)) + var(--controls-bottom-extra, 0rem));
   }
 }

@@ -17,15 +17,16 @@ The settings can be set in the URL query string, so a bookmark opens your prefer
 
 <https://leuchtmetall.github.io/BreathingTimer/?pattern=breath-retention&tempo=slow&breaths=40&sound=off&theme=night>
 
-| Parameter | Values |
-| --- | --- |
-| `pattern` | `balanced`, `box`, `467`, `breath-retention` |
-| `tempo` | Balanced Breathing: `4`, `5`, `5.5`, `6`, `7`; Box Breathing: `3`, `4`, `5`, `7`, `8`; otherwise `slow`, `normal`, `fast` |
-| `breaths` | `20`, `25`, `30`, `35`, `40` (Breath Retention) |
-| `sound` | `on`, `off` |
-| `theme` | `day`, `night` (leave out to follow the system) |
+| Parameter | Values                                                                                                                    |
+| --------- | ------------------------------------------------------------------------------------------------------------------------- |
+| `pattern` | `balanced`, `box`, `467`, `breath-retention`                                                                              |
+| `tempo`   | Balanced Breathing: `4`, `5`, `5.5`, `6`, `7`; Box Breathing: `3`, `4`, `5`, `7`, `8`; otherwise `slow`, `normal`, `fast` |
+| `breaths` | `20`, `25`, `30`, `35`, `40` (Breath Retention)                                                                           |
+| `sound`   | `on`, `off`                                                                                                               |
+| `theme`   | `day`, `night` (leave out to follow the system)                                                                           |
 
 Every parameter is optional. A missing or invalid value uses that setting's default. When the app is served over http or https, the address bar follows every settings change (without adding history entries), so you can bookmark the current setup at any time. Opened from a local file, the URL is only read: add the query to the file's bookmark by hand.
+
 ## Requirements
 
 - Node.js 20.19 or newer (required by Vite 7)
@@ -51,7 +52,7 @@ Opens a Vite dev server with hot reload, by default at <http://localhost:5173>. 
 npm run build
 ```
 
-Type-checks with `tsc`, then writes one file, `dist/index.html`, with all JavaScript and CSS inlined. Open it directly in a browser (no server needed), or preview the build with:
+Type-checks with `tsc`, writes one file, `dist/index.html`, with all JavaScript and CSS inlined, then formats the sources with oxfmt (`npm run format`). Open it directly in a browser (no server needed), or preview the build with:
 
 ```sh
 npm run preview
@@ -63,7 +64,7 @@ npm run preview
 npm run build && npm test
 ```
 
-`npm test` runs the whole Vitest suite once. Build first: `test/built.smoke.test.ts` runs the real `dist/index.html` and fails with "dist/index.html is stale" if any source file is newer than the build.
+`npm test` runs oxlint (`npm run lint`), then the whole Vitest suite once. Build first: `test/built.smoke.test.ts` runs the real `dist/index.html` and fails with "dist/index.html is stale" if any source file is newer than the build.
 
 To run only the source tests (no build needed), or watch them while working:
 

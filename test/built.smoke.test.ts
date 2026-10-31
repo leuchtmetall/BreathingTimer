@@ -114,8 +114,7 @@ describe('built single-file app (dist/index.html)', () => {
     const label = () => document.querySelector('#phase-label')!.textContent;
     const countdown = () => document.querySelector('#countdown')!.textContent;
     const radius = () => document.querySelector('#ring')!.getAttribute('r');
-    const state = () =>
-      document.querySelector('#app')!.getAttribute('data-session-state');
+    const state = () => document.querySelector('#app')!.getAttribute('data-session-state');
 
     // idle initial frame: base breathing radius, empty arc
     app.stepFrame();
@@ -225,9 +224,7 @@ describe('built single-file app (dist/index.html)', () => {
     (document.querySelector('#breathe-in')! as HTMLButtonElement).click();
     app.advance(16);
     expect(role()).toBe('');
-    expect(Array.from(document.querySelectorAll('#rounds li'), (li) => li.textContent)).toEqual([
-      'Round 1 00:45',
-    ]);
+    expect(Array.from(document.querySelectorAll('#rounds li'), (li) => li.textContent)).toEqual(['Round 1 00:45']);
     expect(document.querySelector('#reset')!.textContent).toBe('Done');
     expect(app.errors).toEqual([]);
   });

@@ -72,7 +72,16 @@ export class FaviconController {
 export function mixHex(a: string, b: string, t: number): string | null {
   const [from, to] = [rgb(a), rgb(b)];
   if (!from || !to) return null;
-  return '#' + from.map((x, i) => Math.round(x + (to[i]! - x) * t).toString(16).padStart(2, '0')).join('');
+  return (
+    '#' +
+    from
+      .map((x, i) =>
+        Math.round(x + (to[i]! - x) * t)
+          .toString(16)
+          .padStart(2, '0'),
+      )
+      .join('')
+  );
 }
 
 function rgb(hex: string): number[] | null {

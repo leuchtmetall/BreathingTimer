@@ -80,7 +80,10 @@ export interface DebugMenuActions {
 export class DebugMenu {
   private readonly jumps: HTMLElement;
 
-  constructor(parent: HTMLElement, private readonly actions: DebugMenuActions) {
+  constructor(
+    parent: HTMLElement,
+    private readonly actions: DebugMenuActions,
+  ) {
     const menu = document.createElement('details');
     menu.className = 'debug-menu';
     const summary = document.createElement('summary');

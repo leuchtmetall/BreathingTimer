@@ -231,9 +231,7 @@ describe('Renderer (DOM)', () => {
     const r = new Renderer(targets());
     r.renderRunning(engine.signalAt(1000)!);
     const dotR = Number(dotEl().getAttribute('r'));
-    const strokeW = Number(
-      document.querySelector<SVGCircleElement>('#ring')!.getAttribute('stroke-width'),
-    );
+    const strokeW = Number(document.querySelector<SVGCircleElement>('#ring')!.getAttribute('stroke-width'));
     expect(dotR).toBeGreaterThan(strokeW);
     expect(dotR).toBeLessThanOrEqual(3.5);
   });
@@ -246,17 +244,13 @@ describe('Renderer (DOM)', () => {
 
     const backdropW = Number(backdropWidth());
     const trackW = Number(trackWidth());
-    const ringW = Number(
-      document.querySelector<SVGCircleElement>('#ring')!.getAttribute('stroke-width'),
-    );
+    const ringW = Number(document.querySelector<SVGCircleElement>('#ring')!.getAttribute('stroke-width'));
     // the unfilled outline matches the filled arc; backdrop is far thicker
     expect(trackW).toBe(ringW);
     expect(backdropW).toBeGreaterThan(trackW);
     expect(trackStroke()).not.toBe(backdropStroke()); // dim vs dark shades differ
     // and the whole stack follows the same breathing radius
-    expect(ringRadius()).toBe(
-      Number(document.querySelector<SVGCircleElement>('.ring-track')!.getAttribute('r')),
-    );
+    expect(ringRadius()).toBe(Number(document.querySelector<SVGCircleElement>('.ring-track')!.getAttribute('r')));
   });
 
   it('keeps every layer inside the viewport at full lungs (no clipping)', () => {
@@ -325,19 +319,13 @@ describe('Renderer (DOM)', () => {
     const r = new Renderer(targets());
 
     r.renderRunning(engine.signalAt(0));
-    expect(document.querySelector('#session-stats')!.textContent).toBe(
-      'Cycles: 0 · Time: 00:00',
-    );
+    expect(document.querySelector('#session-stats')!.textContent).toBe('Cycles: 0 · Time: 00:00');
 
     r.renderRunning(engine.signalAt(17_000)); // first complete 4-6-7 cycle
-    expect(document.querySelector('#session-stats')!.textContent).toBe(
-      'Cycles: 1 · Time: 00:17',
-    );
+    expect(document.querySelector('#session-stats')!.textContent).toBe('Cycles: 1 · Time: 00:17');
 
     r.renderRunning(engine.signalAt(60_000));
-    expect(document.querySelector('#session-stats')!.textContent).toBe(
-      'Cycles: 3 · Time: 01:00',
-    );
+    expect(document.querySelector('#session-stats')!.textContent).toBe('Cycles: 3 · Time: 01:00');
 
     r.renderIdle();
     expect(document.querySelector('#session-stats')!.textContent).toBe('');
@@ -361,9 +349,7 @@ describe('Renderer (DOM)', () => {
     expect(ringProgress()).toBeCloseTo(2 / 6, 2);
     expect(document.querySelector('#countdown')!.textContent).toBe(remaining);
     expect(document.querySelector('#session-stats')!.textContent).toBe(stats);
-    expect(
-      (document.querySelector('#phase-label') as HTMLElement).textContent!.startsWith('Paused'),
-    ).toBe(true);
+    expect((document.querySelector('#phase-label') as HTMLElement).textContent!.startsWith('Paused')).toBe(true);
   });
 
   it('idle display: neutral palette, empty ring at base radius, no dot or countdown', () => {
@@ -433,7 +419,7 @@ describe('Tick marks and flash (DOM)', () => {
     return { renderer, run: (ms: number) => renderer.renderRunning(engine.signalAt(ms)) };
   };
 
-  it('draws one tick per count of the current phase, from 12 o\'clock', () => {
+  it("draws one tick per count of the current phase, from 12 o'clock", () => {
     const { renderer, run } = setup(applyTempo(preset467, tempoNormal));
     run(500);
     expect(tickLines()).toHaveLength(4);
@@ -591,9 +577,7 @@ describe('Control wiring', () => {
     expect(app.getAttribute('data-session-state')).toBe('idle');
 
     const presetSelector = document.querySelector<HTMLSelectElement>('#preset-select')!;
-    expect(document.querySelector('label[for="preset-select"]')!.textContent).toContain(
-      'Breathing pattern',
-    );
+    expect(document.querySelector('label[for="preset-select"]')!.textContent).toContain('Breathing pattern');
     expect(Array.from(presetSelector.options, ({ value, textContent }) => [value, textContent])).toEqual(
       presetChoices.map(({ id, label }) => [id, label]),
     );
@@ -607,19 +591,13 @@ describe('Control wiring', () => {
     (document.querySelector('#start') as HTMLButtonElement).click();
     expect(app.getAttribute('data-session-state')).toBe('running');
     expect(presetSelector.disabled).toBe(true);
-    expect(
-      (document.querySelector('#phase-label') as HTMLElement).textContent,
-    ).toBe('Breathe in');
-    expect(document.querySelector('#session-stats')!.textContent).toBe(
-      'Cycles: 0 · Time: 00:00',
-    );
+    expect((document.querySelector('#phase-label') as HTMLElement).textContent).toBe('Breathe in');
+    expect(document.querySelector('#session-stats')!.textContent).toBe('Cycles: 0 · Time: 00:00');
 
     now.mockReturnValue(4500);
     (document.querySelector('#pause') as HTMLButtonElement).click();
     expect(app.getAttribute('data-session-state')).toBe('paused');
-    expect(
-      (document.querySelector('#phase-label') as HTMLElement).textContent,
-    ).toBe('Paused · breathe in'); // Box Breathing (5 s per phase) has not reached its hold.
+    expect((document.querySelector('#phase-label') as HTMLElement).textContent).toBe('Paused · breathe in'); // Box Breathing (5 s per phase) has not reached its hold.
     expect(presetSelector.disabled).toBe(true);
 
     presetSelector.value = 'breath-retention';
@@ -632,9 +610,7 @@ describe('Control wiring', () => {
     expect(app.getAttribute('data-session-state')).toBe('idle');
     expect(presetSelector.disabled).toBe(false);
     expect(presetSelector.value).toBe('box');
-    expect(
-      (document.querySelector('#phase-label') as HTMLElement).textContent,
-    ).toBe('Ready');
+    expect((document.querySelector('#phase-label') as HTMLElement).textContent).toBe('Ready');
     expect(document.querySelector('#session-stats')!.textContent).toBe('');
     now.mockRestore();
   });

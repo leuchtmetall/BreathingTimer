@@ -209,14 +209,8 @@ export class Renderer {
 
     // Dot rides the filled/unfilled boundary at the current breathing radius.
     const angle = -Math.PI / 2 + progress * 2 * Math.PI;
-    this.targets.dot.setAttribute(
-      'cx',
-      (CENTER + radius * Math.cos(angle)).toFixed(2),
-    );
-    this.targets.dot.setAttribute(
-      'cy',
-      (CENTER + radius * Math.sin(angle)).toFixed(2),
-    );
+    this.targets.dot.setAttribute('cx', (CENTER + radius * Math.cos(angle)).toFixed(2));
+    this.targets.dot.setAttribute('cy', (CENTER + radius * Math.sin(angle)).toFixed(2));
     this.targets.dot.setAttribute('visibility', full ? 'hidden' : 'visible');
     this.targets.dot.style.fill = main;
 
@@ -250,10 +244,7 @@ export class Renderer {
     if (this.ringKey === key) return;
     this.ringKey = key;
     this.targets.ring.setAttribute('r', radius.toFixed(2));
-    this.targets.ring.setAttribute(
-      'stroke-dasharray',
-      `${filled} ${circumference.toFixed(2)}`,
-    );
+    this.targets.ring.setAttribute('stroke-dasharray', `${filled} ${circumference.toFixed(2)}`);
   }
 
   /** N radial marks from 12 o'clock clockwise, rebuilt only on change. */
@@ -263,9 +254,7 @@ export class Renderer {
     const group = this.targets.ticks;
     if (group.childElementCount !== count) {
       group.replaceChildren(
-        ...Array.from({ length: count }, () =>
-          document.createElementNS('http://www.w3.org/2000/svg', 'line'),
-        ),
+        ...Array.from({ length: count }, () => document.createElementNS('http://www.w3.org/2000/svg', 'line')),
       );
     }
     this.ticksKey = key;

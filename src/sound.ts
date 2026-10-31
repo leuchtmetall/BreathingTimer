@@ -226,10 +226,13 @@ export class SoundScheduler {
     const voices = this.voicesFor(cue);
     const lengthS = (voices.length - 1) * MELODY_STEP_S + voices.at(-1)!.duration;
     this.previews += 1;
-    setTimeout(() => {
-      this.previews -= 1;
-      if (!this.sessionNeedsAudio) this.release();
-    }, lengthS * 1000 + PREVIEW_MARGIN_MS);
+    setTimeout(
+      () => {
+        this.previews -= 1;
+        if (!this.sessionNeedsAudio) this.release();
+      },
+      lengthS * 1000 + PREVIEW_MARGIN_MS,
+    );
   }
 
   private get sessionNeedsAudio(): boolean {

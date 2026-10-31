@@ -1,7 +1,15 @@
 import { describe, expect, it } from 'vitest';
 import { jumpTargets } from './debug-menu';
 import { BreathingEngine } from './engine';
-import { applyTempo, balancedPreset, boxPreset, breathRetentionPreset, preset467, tempoFast, tempoNormal } from './presets';
+import {
+  applyTempo,
+  balancedPreset,
+  boxPreset,
+  breathRetentionPreset,
+  preset467,
+  tempoFast,
+  tempoNormal,
+} from './presets';
 
 /** Where a jump lands, as the engine sees it. */
 function landing(engine: BreathingEngine, sessionMs: number, holdsMs: readonly number[]) {

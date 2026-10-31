@@ -1,0 +1,11 @@
+{
+  "singleQuote": true,
+  "printWidth": 120,
+  "ignorePatterns": ["dist", "openspec", "todo.md"],
+  "overrides": [
+    {
+      "files": ["*.css", "*.yml"],
+      "options": { "singleQuote": false }
+    }
+  ]
+}

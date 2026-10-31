@@ -10,19 +10,14 @@ const css = readFileSync(join(import.meta.dirname, 'style.css'), 'utf8');
 function declarations(selectorPattern: string): Map<string, string> {
   const block = css.match(new RegExp(`${selectorPattern}\\s*\\{([^}]*)\\}`))?.[1];
   if (block === undefined) throw new Error(`No CSS block for ${selectorPattern}`);
-  return new Map(
-    Array.from(block.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g), ([, name, value]) => [
-      name!,
-      value!.trim(),
-    ]),
-  );
+  return new Map(Array.from(block.matchAll(/(--[\w-]+)\s*:\s*([^;]+);/g), ([, name, value]) => [name!, value!.trim()]));
 }
 
 const day = declarations(':root');
 // Either quote style, so a CSS reformat cannot hide the night blocks.
-const nightOverride = declarations(":root\\[data-theme=[\"']night[\"']\\]");
+const nightOverride = declarations(':root\\[data-theme=["\']night["\']\\]');
 const nightSystem = declarations(
-  "@media \\(prefers-color-scheme: dark\\)\\s*\\{\\s*:root:not\\(\\[data-theme=[\"']day[\"']\\]\\)",
+  '@media \\(prefers-color-scheme: dark\\)\\s*\\{\\s*:root:not\\(\\[data-theme=["\']day["\']\\]\\)',
 );
 
 const HUES = ['in', 'out', 'hold-full', 'idle', 'breath', 'retention'] as const;

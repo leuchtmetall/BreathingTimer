@@ -345,7 +345,7 @@ describe('Tempo follows the pattern', () => {
     expect(text('#phase-label')).toBe('Hold');
   });
 
-  it('remembers each pattern\'s tempo while the page is open', async () => {
+  it("remembers each pattern's tempo while the page is open", async () => {
     await load();
     choose('preset-select', '467');
     choose('tempo-select', 'fast');
@@ -436,7 +436,9 @@ describe('Breath Retention controls', () => {
 
   it('runs a round: breathing, the hold, Breathe in, recovery, Done', async () => {
     await startRetention();
-    expect(css).toMatch(/\.app\[data-session-state="running"\]\[data-role="retention"\] #breathe-in \{\s*visibility: visible;/);
+    expect(css).toMatch(
+      /\.app\[data-session-state="running"\]\[data-role="retention"\] #breathe-in \{\s*visibility: visible;/,
+    );
     at(16 * 3_500 + 500);
     expect(text('#countdown')).toBe('17/20');
     expect(app().dataset.role).toBe('breath');

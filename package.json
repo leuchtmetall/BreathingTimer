@@ -1,17 +1,21 @@
 {
   "name": "breathing-timer",
-  "private": true,
   "version": "0.2.1",
+  "private": true,
   "type": "module",
   "scripts": {
     "dev": "vite",
-    "build": "tsc && vite build",
-    "test": "vitest run",
-    "preview": "vite preview"
+    "build": "tsc && vite build && npm run format && touch dist/index.html",
+    "test": "npm run lint && vitest run",
+    "preview": "vite preview",
+    "lint": "oxlint",
+    "format": "oxfmt"
   },
   "devDependencies": {
     "@types/node": "^26.6.6",
     "jsdom": "^30.1.3",
+    "oxfmt": "^0.75.0",
+    "oxlint": "^1.90.0",
     "typescript": "^7.0.2",
     "vite": "^8.3.5",
     "vite-plugin-singlefile": "^2.3.4",
