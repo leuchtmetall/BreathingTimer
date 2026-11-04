@@ -88,7 +88,8 @@ export const soundChoices: readonly SoundChoice[] = [
   { label: 'Hold tone', type: 'phase', kind: 'hold' },
   { label: 'Breathe out tone', type: 'phase', kind: 'exhale' },
   { label: 'Tick', type: 'tick' },
-  { label: 'Breath tick', type: 'breath' },
+  { label: 'Breath in sound', type: 'breath', kind: 'inhale' },
+  { label: 'Breath out sound', type: 'breath', kind: 'exhale' },
   { label: 'Hold minute melody', type: 'hold-minute' },
 ];
 

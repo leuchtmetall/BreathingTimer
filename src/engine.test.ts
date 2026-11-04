@@ -676,13 +676,15 @@ describe('Breath Retention cues', () => {
     return { clock, engine };
   };
 
-  it('lists one breath cue per breath in and a phase cue for the hold and each recovery phase', () => {
+  it('lists a breath cue per breath in and out and a phase cue for the hold and each recovery phase', () => {
     const { clock, engine } = setup();
     clock.advance(BREATHING_MS + 125_000);
     const holdEnd = engine.endRetention()!;
     const cues = engine.cuesBetween(0, holdEnd + 18_500);
-    const breaths = cues.filter((c) => c.type === 'breath');
-    expect(breaths.map((c) => c.atMs)).toEqual(Array.from({ length: 20 }, (_, i) => i * 3_500));
+    const breaths = (kind: string) => cues.filter((c) => c.type === 'breath' && c.kind === kind).map((c) => c.atMs);
+    expect(breaths('inhale')).toEqual(Array.from({ length: 20 }, (_, i) => i * 3_500));
+    expect(breaths('exhale')).toEqual(Array.from({ length: 20 }, (_, i) => i * 3_500 + 1_750));
+    expect(cues.filter((c) => c.type === 'breath' && c.atMs >= BREATHING_MS)).toEqual([]);
     expect(cues.filter((c) => c.type === 'phase').map((c) => [c.atMs, c.kind])).toEqual([
       [BREATHING_MS, 'hold'],
       [holdEnd, 'inhale'],

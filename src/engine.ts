@@ -39,8 +39,9 @@ export interface SessionSignal {
 /**
  * A timed sound cue in session time: `phase` at every phase start, `tick` at
  * every whole count inside a phase (only for presets with ticks). Breath
- * Retention replaces the breathing part's phase cues with one `breath` per
- * breath in, and marks every full minute of its hold with `hold-minute`.
+ * Retention replaces the breathing part's phase cues with one `breath` at each
+ * breath in and breath out (told apart by `kind`), and marks every full minute
+ * of its hold with `hold-minute`.
  */
 export interface Cue {
   readonly atMs: number;
@@ -274,7 +275,7 @@ export class BreathingEngine {
         }
       };
       if (phase.role === 'breath') {
-        if (phase.kind === 'inhale') push(startMs, 'breath');
+        push(startMs, 'breath');
       } else {
         push(startMs, 'phase');
       }

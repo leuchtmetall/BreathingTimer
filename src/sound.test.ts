@@ -365,15 +365,14 @@ describe('SoundScheduler with Breath Retention', () => {
     expect(melody.map((o) => Math.round((o.startAt! - 100) * 1000))).toEqual([1_000, 1_200, 1_400]);
   });
 
-  it('uses the soft breath voice once per breath in', () => {
+  it('plays a breath-in sound and a softer breath-out sound per breath', () => {
     const { ctx, engine, scheduler } = setup();
     scheduler.sync(engine);
     const breathing = ctx.oscillators.filter((o) => o.startAt! - 100 < 70);
-    expect(breathing).toHaveLength(20);
-    expect(new Set(breathing.map((o) => o.frequency.value))).toEqual(new Set([880]));
-    const peak = ctx.gains[0]!.peak;
-    expect(peak).toBeGreaterThan(0);
-    expect(peak).toBeLessThan(0.21);
+    expect(breathing.map((o) => o.frequency.value)).toEqual(Array.from({ length: 40 }, (_, i) => (i % 2 ? 523 : 880)));
+    expect(breathing.map((o) => Math.round((o.startAt! - 100) * 1000))).toEqual(
+      Array.from({ length: 40 }, (_, i) => i * 1_750),
+    );
   });
 
   it('cancels queued hold sounds past the hold end and queues the recovery tone at once', () => {
@@ -409,9 +408,27 @@ describe('preview (debug)', () => {
     expect(freqs(play(true, 'phase', 'hold').ctx)).toEqual([550]);
     expect(freqs(play(true, 'phase', 'exhale').ctx)).toEqual([440]);
     expect(freqs(play(true, 'tick').ctx)).toEqual([1320]);
-    expect(freqs(play(true, 'breath').ctx)).toEqual([880]);
+    expect(freqs(play(true, 'breath', 'inhale').ctx)).toEqual([880]);
+    expect(freqs(play(true, 'breath', 'exhale').ctx)).toEqual([523]);
     const { ctx } = play(true, 'phase', 'inhale');
     expect(ctx.oscillators[0]!.startAt).toBe(100);
+  });
+
+  it('makes the breath-in sound louder and longer than the tick, and the breath-out sound softer', () => {
+    const voice = (...args: Parameters<SoundScheduler['preview']>) => {
+      const { ctx } = play(true, ...args);
+      const osc = ctx.oscillators[0]!;
+      return { freq: osc.frequency.value, peak: ctx.gains[0]!.peak, length: osc.stops[0]! - osc.startAt! };
+    };
+    const tick = voice('tick');
+    const breathIn = voice('breath', 'inhale');
+    const breathOut = voice('breath', 'exhale');
+    expect(breathIn.peak).toBeGreaterThan(tick.peak);
+    expect(breathIn.length).toBeGreaterThan(tick.length);
+    expect(breathIn.length).toBeLessThan(1.4); // a breath in at Fast tempo
+    expect(breathOut.peak).toBeLessThan(breathIn.peak);
+    expect(breathOut.length).toBeLessThan(breathIn.length);
+    expect(breathOut.freq).toBeLessThan(breathIn.freq);
   });
 
   it('plays the minute melody rising, 0.2 s apart', () => {

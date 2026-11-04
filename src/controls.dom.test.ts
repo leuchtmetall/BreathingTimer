@@ -582,6 +582,19 @@ describe('Debug menu', () => {
     }
   });
 
+  it('plays the breath-in and breath-out sounds', async () => {
+    const sounds = fakeAudio();
+    try {
+      await debugOn();
+      menuButton('Breath in sound').click();
+      menuButton('Breath out sound').click();
+      at(0);
+      expect(sounds.started).toEqual([880, 523]);
+    } finally {
+      vi.unstubAllGlobals();
+    }
+  });
+
   describe('results entries', () => {
     const resultLabels = () =>
       Array.from(menu()!.querySelectorAll('[data-group="results"] button'), (b) => b.textContent);

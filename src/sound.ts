@@ -62,13 +62,23 @@ const TICK_VOICE: Voice = {
   duration: 0.03,
 };
 
-/** Breath Retention: one soft tick per breath in, quieter and lower than the tick. */
-const BREATH_VOICE: Voice = {
+/**
+ * Breath Retention breathing part: a clear, ringing tick at each breath in,
+ * louder and longer than the tick (and over well before the next breath at
+ * Fast tempo), and a softer, shorter, lower one at each breath out.
+ */
+const BREATH_IN_VOICE: Voice = {
   type: 'triangle',
   frequency: 880,
-  peak: 0.2,
-  attack: 0.004,
-  duration: 0.05,
+  peak: 0.45,
+  attack: 0.006,
+  duration: 0.26,
+};
+const BREATH_VOICES: Record<PhaseKind, Voice> = {
+  inhale: BREATH_IN_VOICE,
+  // Never cued: breath cues are only breaths in and out.
+  hold: BREATH_IN_VOICE,
+  exhale: { type: 'sine', frequency: 523, peak: 0.12, attack: 0.01, duration: 0.12 },
 };
 
 /** Full minute of a hold: the three phase tones rising, about 0.2 s apart. */
@@ -260,7 +270,7 @@ export class SoundScheduler {
       case 'tick':
         return [TICK_VOICE];
       case 'breath':
-        return [BREATH_VOICE];
+        return [BREATH_VOICES[cue.kind]];
       case 'hold-minute':
         return MINUTE_MELODY;
     }
