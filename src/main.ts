@@ -208,12 +208,30 @@ function stepSettings(offset: number): void {
 }
 
 // Left/Right Arrow work exactly when the pattern stepping buttons do, Up/Down
-// exactly when the tempo list does. Modified keys stay with the browser, and
-// form fields keep their own arrow keys.
+// exactly when the tempo list does. Space starts from idle and ends the
+// Breath Retention hold; it never resets, except through a focused Reset
+// button. Modified keys stay with the browser, form fields keep their own
+// keys, and a focused button keeps Space.
 document.addEventListener('keydown', (event) => {
   if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
   const target = event.target;
   if (target instanceof HTMLElement && (target.matches('input, select, textarea') || target.isContentEditable)) return;
+  if (event.key === ' ') {
+    // A held key acts once: it never starts a session and later ends a hold.
+    if (event.repeat || isActivatable(target)) return;
+    if (engine.state === 'idle') {
+      // Focused while still shown: once the session hides it, the next Tab
+      // continues from here to Reset.
+      startButton.focus();
+      startSession();
+    } else if (engine.state === 'running' && app.dataset.role === 'retention') {
+      endHold();
+    } else {
+      return;
+    }
+    event.preventDefault();
+    return;
+  }
   if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
     if (tempoSelector.disabled) return;
     // Taken even at a limit, so a held key never starts scrolling the page.
@@ -226,6 +244,16 @@ document.addEventListener('keydown', (event) => {
   event.preventDefault();
   stepPreset(step === presetPrev ? -1 : 1);
 });
+
+/**
+ * A shown button, link, or summary: the browser presses it on Space. Start,
+ * hidden once the session runs, can stay the focused element, but pressing it
+ * does nothing, so it must not swallow the Space shortcut.
+ */
+function isActivatable(target: EventTarget | null): boolean {
+  if (!(target instanceof HTMLElement) || !target.matches('button, a[href], summary')) return false;
+  return typeof target.checkVisibility === 'function' ? target.checkVisibility() : target.getClientRects().length > 0;
+}
 
 /**
  * The tempo and breaths lists and Up/Down Arrow all land here; either setting
@@ -259,13 +287,8 @@ tempoSelector.addEventListener('change', () => selectSettings({ tempoId: tempoSe
 
 const resetButton = button('reset');
 
-button('start').addEventListener('click', () => {
-  // Inside the click: browsers only let audio start from a user action.
-  if (sound.isEnabled) sound.unlock();
-  renderer.clearSummary();
-  engine.start();
-  sync();
-});
+const startButton = button('start');
+startButton.addEventListener('click', startSession);
 // Pause and resume exist only in debug mode; otherwise they leave the page,
 // so neither the keyboard nor a script can reach them.
 if (DEBUG) {
@@ -285,13 +308,7 @@ if (DEBUG) {
   button('resume').remove();
 }
 resetButton.addEventListener('click', endSession);
-// Ends the hold; queued hold sounds go, and the recovery tone plays at once.
-button('breathe-in').addEventListener('click', () => {
-  const holdEndMs = engine.endRetention();
-  if (holdEndMs === null) return;
-  sound.restartAt(engine, holdEndMs);
-  update();
-});
+button('breathe-in').addEventListener('click', endHold);
 
 // Available in every session state; never touches the engine.
 const matchMedia = typeof window.matchMedia === 'function' ? (query: string) => window.matchMedia(query) : undefined;
@@ -332,6 +349,22 @@ setInterval(update, 500);
 document.addEventListener('visibilitychange', () => {
   if (document.visibilityState === 'visible') sound.recover();
 });
+
+/** Start and Space. Must run inside a user action: browsers only let audio start from one. */
+function startSession(): void {
+  if (sound.isEnabled) sound.unlock();
+  renderer.clearSummary();
+  engine.start();
+  sync();
+}
+
+/** Breathe in and Space: ends the hold; queued hold sounds go, and the recovery tone plays at once. */
+function endHold(): void {
+  const holdEndMs = engine.endRetention();
+  if (holdEndMs === null) return;
+  sound.restartAt(engine, holdEndMs);
+  update();
+}
 
 /** Reset and Done: the last stats move below the circle, the rounds stay. */
 function endSession(): void {

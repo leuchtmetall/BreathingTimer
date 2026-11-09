@@ -242,6 +242,51 @@ For every pattern except Breath Retention, the system SHALL select the tempo cho
 - **WHEN** the user presses Up Arrow or Down Arrow while holding Alt, Ctrl, Meta, or Shift, or while focus is in the pattern, tempo, or breaths list
 - **THEN** the shortcut does not step the tempo and the browser or the list handles the key natively
 
+### Requirement: Space key starts a session
+While the session is idle, the system SHALL start a session when the user presses Space, as if Start had been pressed, and SHALL move focus to the Start control so the next Tab press continues from Start to the controls after it. Used this way, Space SHALL NOT scroll the page.
+
+#### Scenario: Space starts from idle
+- **WHEN** the session is idle, nothing is focused, and the user presses Space
+- **THEN** a session starts with the same pattern, tempo, and sound behaviour as pressing Start, and the page does not scroll
+
+#### Scenario: Tab reaches Reset next
+- **WHEN** the user has started a session with Space and then presses Tab
+- **THEN** focus moves to the Reset control (in debug mode, to Pause first, then Reset)
+
+#### Scenario: Start already focused
+- **WHEN** the Start control has focus and the user presses Space
+- **THEN** exactly one session starts
+
+### Requirement: Space key never resets
+Space SHALL NOT end a session unless the Reset control itself has focus. While a session runs and focus is not on a button, Space SHALL do nothing apart from what Space key ends the hold in breath-retention defines.
+
+#### Scenario: Space while running does not reset
+- **WHEN** a Balanced Breathing session is running, nothing is focused, and the user presses Space
+- **THEN** the session keeps running unchanged
+
+#### Scenario: Space on focused Reset
+- **WHEN** the Reset control has focus and the user presses Space
+- **THEN** the session ends, as it would for a click on Reset
+
+### Requirement: Space key shortcut conditions
+The Space shortcuts SHALL be ignored while a modifier key (Alt, Ctrl, Meta, or Shift) is held, while focus is in a form field, and for repeated key events from a held key. While focus is on a button, Space SHALL keep its native meaning of pressing that button.
+
+#### Scenario: Modifier keys are left alone
+- **WHEN** the session is idle and the user presses Shift+Space
+- **THEN** no session starts
+
+#### Scenario: Form fields keep Space
+- **WHEN** focus is in the pattern, tempo, or breaths list and the user presses Space
+- **THEN** no session starts; the list handles the key natively
+
+#### Scenario: Focused button keeps Space
+- **WHEN** the session is idle, the sound switch has focus, and the user presses Space
+- **THEN** the sound switch toggles and no session starts
+
+#### Scenario: Held key does not repeat
+- **WHEN** the user starts a session with Space and keeps holding it
+- **THEN** only the first key press acts
+
 ### Requirement: Stable pattern control width
 The pattern control SHALL keep the same width for every pattern, wide enough for the longest pattern name, so the stepping buttons stay in place while the user steps through the patterns.
 

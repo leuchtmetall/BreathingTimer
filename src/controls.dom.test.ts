@@ -603,6 +603,138 @@ describe('Breath Retention controls', () => {
   });
 });
 
+describe('Space key shortcuts', () => {
+  /** Presses Space on `target` (the page when nothing is focused); returns the event. */
+  const space = (target: Element = document.body, init: KeyboardEventInit = {}) => {
+    const event = new KeyboardEvent('keydown', { key: ' ', bubbles: true, cancelable: true, ...init });
+    target.dispatchEvent(event);
+    return event;
+  };
+  const state = () => app().dataset.sessionState;
+
+  // jsdom has no layout: show controls as the stylesheet does (Start only
+  // while idle, Breathe in only in the hold), everything else as shown.
+  beforeEach(() => {
+    Object.defineProperty(HTMLElement.prototype, 'checkVisibility', {
+      configurable: true,
+      value(this: HTMLElement) {
+        const { sessionState, role } = app().dataset;
+        if (this.id === 'start') return sessionState === 'idle';
+        if (this.id === 'breathe-in') return sessionState === 'running' && role === 'retention';
+        return true;
+      },
+    });
+  });
+  afterEach(() => {
+    delete (HTMLElement.prototype as { checkVisibility?: unknown }).checkVisibility;
+  });
+
+  // Normal tempo, 20 breaths: breathing 0..70 s, then the hold.
+  const retentionInHold = async () => {
+    await load();
+    choose('preset-select', 'breath-retention');
+    choose('breaths-select', '20');
+    space();
+    at(0);
+    at(70_000 + 92_000);
+    expect(app().dataset.role).toBe('retention');
+  };
+
+  it('starts from idle, focuses Start, and keeps the page from scrolling', async () => {
+    await load();
+    const event = space();
+    expect(state()).toBe('running');
+    expect(document.activeElement).toBe($('#start'));
+    expect(event.defaultPrevented).toBe(true);
+  });
+
+  it('does nothing while running outside a hold, and never resets', async () => {
+    await load();
+    click('start');
+    at(5_000);
+    const label = text('#phase-label');
+    const event = space();
+    at(5_000);
+    expect(state()).toBe('running');
+    expect(text('#phase-label')).toBe(label);
+    expect(text('#summary-stats')).toBe('');
+    expect(event.defaultPrevented).toBe(false);
+  });
+
+  it('ends the Breath Retention hold, as Breathe in does', async () => {
+    await retentionInHold();
+    const event = space();
+    expect(event.defaultPrevented).toBe(true);
+    expect(app().dataset.role).toBe('');
+    expect(text('#phase-label')).toBe('Breathe in');
+    expect(rounds()).toEqual(['Round 1 01:32']);
+  });
+
+  it('ends the hold while the hidden Start is still the focused element', async () => {
+    await retentionInHold();
+    expect(document.activeElement).toBe($('#start'));
+    space($('#start'));
+    expect(rounds()).toEqual(['Round 1 01:32']);
+  });
+
+  it('does nothing in the breathing and recovery parts', async () => {
+    await load();
+    choose('preset-select', 'breath-retention');
+    choose('breaths-select', '20');
+    click('start');
+    at(16 * 3_500 + 500);
+    expect(space().defaultPrevented).toBe(false);
+    expect(text('#countdown')).toBe('17/20');
+
+    at(70_000 + 92_000);
+    click('breathe-in');
+    at(70_000 + 92_000 + 1_000);
+    const label = text('#phase-label');
+    expect(space().defaultPrevented).toBe(false);
+    expect(text('#phase-label')).toBe(label);
+    expect(rounds()).toEqual(['Round 1 01:32']);
+  });
+
+  it.each([{ shiftKey: true }, { altKey: true }, { ctrlKey: true }, { metaKey: true }, { repeat: true }])(
+    'ignores Space with %o',
+    async (init) => {
+      await load();
+      expect(space(document.body, init).defaultPrevented).toBe(false);
+      expect(state()).toBe('idle');
+    },
+  );
+
+  it('ignores a held Space when the hold begins', async () => {
+    await retentionInHold();
+    space(document.body, { repeat: true });
+    expect(app().dataset.role).toBe('retention');
+  });
+
+  it('leaves Space to form fields', async () => {
+    await load();
+    for (const id of ['preset-select', 'tempo-select', 'breaths-select']) {
+      space($(`#${id}`));
+      expect(state()).toBe('idle');
+    }
+  });
+
+  it('leaves Space to a focused button', async () => {
+    await load();
+    expect(space($('#sound-toggle')).defaultPrevented).toBe(false);
+    expect(state()).toBe('idle');
+    // A focused Start is pressed by the browser, so the shortcut must not start a second time.
+    expect(space($('#start')).defaultPrevented).toBe(false);
+    expect(state()).toBe('idle');
+  });
+
+  it('leaves Space to a focused Reset in the hold, so it never acts as Breathe in', async () => {
+    await retentionInHold();
+    expect(space($('#reset')).defaultPrevented).toBe(false);
+    expect(app().dataset.role).toBe('retention');
+    expect(rounds()).toEqual([]);
+  });
+});
+
 describe('Debug menu', () => {
   const menu = () => document.querySelector<HTMLDetailsElement>('.debug-menu');
   const menuButton = (label: string) =>

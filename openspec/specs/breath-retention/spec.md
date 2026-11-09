@@ -18,7 +18,7 @@ The system SHALL run Breath Retention as repeating rounds. Each round is the sel
 - **THEN** the first breath in of the next round begins
 
 ### Requirement: Hold ends on user action
-The hold with empty lungs SHALL have no time limit and SHALL end only when the user presses the Breathe in control. The Breathe in control SHALL be visible only while the hold is running.
+The hold with empty lungs SHALL have no time limit and SHALL end only when the user presses the Breathe in control or uses the Space key shortcut for it. The Breathe in control SHALL be visible only while the hold is running.
 
 #### Scenario: Hold continues until ended
 - **WHEN** the hold has lasted 5 minutes and the user has not pressed Breathe in
@@ -31,6 +31,25 @@ The hold with empty lungs SHALL have no time limit and SHALL end only when the u
 #### Scenario: Breathe in hidden outside the hold
 - **WHEN** a Breath Retention session is in its breathing or recovery part, or is idle
 - **THEN** the Breathe in control is not visible
+
+### Requirement: Space key ends the hold
+While the hold with empty lungs is running, the system SHALL end the hold when the user presses Space, exactly as if Breathe in had been pressed, under the same conditions as the other Space shortcuts. Used this way, Space SHALL NOT scroll the page. Outside the hold, Space SHALL NOT affect a running Breath Retention session.
+
+#### Scenario: Space ends the hold
+- **WHEN** the hold is running, nothing is focused, and the user presses Space
+- **THEN** the hold ends at that moment, the recovery breath in begins, and the recovery tone plays at once, as for Breathe in
+
+#### Scenario: Space outside the hold
+- **WHEN** a Breath Retention session is in its breathing or recovery part and the user presses Space
+- **THEN** nothing changes
+
+#### Scenario: Held key from Start does not end a hold
+- **WHEN** the user starts a session with Space and is still holding it when a hold begins
+- **THEN** the hold keeps running until a new Space press or Breathe in
+
+#### Scenario: Focused Reset during the hold
+- **WHEN** the hold is running, the Reset control has focus, and the user presses Space
+- **THEN** the session ends as for Reset, and the hold is not ended as a Breathe in
 
 ### Requirement: Breathe in placement
 The Breathe in control SHALL be shown centered on its own row above the preset controls (Breathing pattern, Tempo, Breaths), apart from the Reset control. For every pattern and in every session state, this row SHALL keep its space when Breathe in is hidden, so the circle and the other controls do not move when a session starts or ends, when the hold starts or ends, or when the selected pattern changes.
