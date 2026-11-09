@@ -180,11 +180,18 @@ In night mode, the orange breathing ring and the light-turquoise hold ring SHALL
 - **THEN** the breathing ring is orange and dimmer than in day mode
 
 ### Requirement: Breath Retention breathing sounds
-When sound is on, the system SHALL play a breath-in sound at the start of each breath in of the breathing part and a breath-out sound at the start of each breath out of the breathing part, and no phase-change tones during the breathing part. The breath-in sound SHALL be louder and longer than the in-phase tick and SHALL end before the following breath out starts at every tempo. The breath-out sound SHALL be shorter, quieter, and lower than the breath-in sound. A phase-change tone SHALL play when the hold starts and when each recovery phase starts, and no breath-out sound SHALL play at the recovery breath out. In the recovery hold, in-phase tick sounds SHALL play once per second.
+When sound is on, the system SHALL play a breath-in sound at the start of each breath in of the breathing part and a breath-out sound at the start of each breath out of the breathing part, and no phase-change tones during the breathing part.
 
 #### Scenario: One tick per breath
 - **WHEN** sound is on and the breathing part runs
 - **THEN** the breath-in sound plays as each breath in begins, the breath-out sound plays as each breath out begins, and no phase-change tone plays
+
+#### Scenario: Last breath out before the hold
+- **WHEN** sound is on and the last breath out of the breathing part ends
+- **THEN** the breath-out sound played at its start, and the hold's phase-change tone plays as the hold begins
+
+### Requirement: Breath Retention breath sound character
+The breath-in sound SHALL be louder and longer than the in-phase tick and SHALL end before the following breath out starts at every tempo. The breath-out sound SHALL be shorter, quieter, and lower than the breath-in sound.
 
 #### Scenario: Breath-in sound is easy to hear
 - **WHEN** the breath-in sound plays
@@ -198,13 +205,16 @@ When sound is on, the system SHALL play a breath-in sound at the start of each b
 - **WHEN** the breath-out sound plays
 - **THEN** it is shorter, quieter, and lower in pitch than the breath-in sound
 
-#### Scenario: Last breath out before the hold
-- **WHEN** sound is on and the last breath out of the breathing part ends
-- **THEN** the breath-out sound played at its start, and the hold's phase-change tone plays as the hold begins
+### Requirement: Hold and recovery phase tones
+When sound is on, a phase-change tone SHALL play when the hold starts and when each recovery phase starts, and no breath-out sound SHALL play at the recovery breath out. In the recovery hold, in-phase tick sounds SHALL play once per second.
 
 #### Scenario: Hold and recovery tones
 - **WHEN** sound is on and the hold starts, and later the recovery breath in, hold, and breath out start
 - **THEN** a phase-change tone plays at each of those starts, and no breath-in or breath-out sound plays with them
+
+#### Scenario: Recovery hold ticks
+- **WHEN** sound is on and the recovery hold runs
+- **THEN** an in-phase tick sound plays once per second
 
 ### Requirement: Hold sounds
 When sound is on, the system SHALL play a short melody at each full minute of the hold, measured from the hold start: the three phase-change tones in rising order (exhale, hold, inhale pitch). No other sounds SHALL play during the hold. Hold sounds SHALL stop as soon as the hold ends. The user cannot choose other hold sounds.
@@ -233,7 +243,7 @@ A round SHALL count as completed when its hold ends and the recovery breath in b
 - **THEN** that hold is not added to the finished rounds
 
 ### Requirement: Finished rounds list
-The system SHALL list the completed rounds below the circle, or beside it in short, wide viewports with no free space below the circle, one line per round with its number and hold time in minutes and seconds, adding each round as it completes. The list SHALL remain after the session ends and SHALL be cleared when a new session starts. Adding a round SHALL NOT change the circle's position or size, and the list SHALL NOT cover the circle. A list too long for its space SHALL scroll within that space.
+The system SHALL list the completed rounds below the circle, or beside it in short, wide viewports with no free space below the circle, one line per round with its number and hold time in minutes and seconds, adding each round as it completes. The list SHALL remain after the session ends and SHALL be cleared when a new session starts.
 
 #### Scenario: Live list
 - **WHEN** the second round's hold ends after 125 seconds, following a first hold of 92 seconds
@@ -246,6 +256,9 @@ The system SHALL list the completed rounds below the circle, or beside it in sho
 #### Scenario: New session clears the list
 - **WHEN** the user starts a new session
 - **THEN** the finished rounds list is empty
+
+### Requirement: Finished rounds list keeps the circle in place
+Adding a round SHALL NOT change the circle's position or size, and the list SHALL NOT cover the circle. A list too long for its space SHALL scroll within that space.
 
 #### Scenario: Circle stays in place when a round is added
 - **WHEN** a round completes during a running session

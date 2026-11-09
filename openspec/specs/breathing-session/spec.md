@@ -827,7 +827,7 @@ The reset control SHALL be labeled Done once the current session has at least on
 - **THEN** the reset control is labeled Done
 
 ### Requirement: Session summary after the session ends
-When the user ends a session with Reset or Done, the circle SHALL return to idle, and the completed cycle count (or round count) and active session time SHALL move from inside the circle to below it, frozen at their values when the session ended, above any finished rounds list. In short, wide viewports with no free space below the circle, they SHALL be shown beside it instead. Starting a new session SHALL clear them. Showing or clearing the summary SHALL NOT change the circle's position or size, and the summary SHALL NOT cover the circle.
+When the user ends a session with Reset or Done, the circle SHALL return to idle, and the completed cycle count (or round count) and active session time SHALL move from inside the circle to below it, frozen at their values when the session ended, above any finished rounds list. Starting a new session SHALL clear them.
 
 #### Scenario: Stats move below the circle
 - **WHEN** the user presses Done after 3 completed cycles and 1:05 of active time
@@ -836,6 +836,9 @@ When the user ends a session with Reset or Done, the circle SHALL return to idle
 #### Scenario: Summary cleared on start
 - **WHEN** the user starts a new session after a summary is shown
 - **THEN** the summary below the circle is cleared and the stats start again inside the circle at zero
+
+### Requirement: Session summary keeps the circle in place
+In short, wide viewports with no free space below the circle, the session summary SHALL be shown beside it instead of below. Showing or clearing the summary SHALL NOT change the circle's position or size, and the summary SHALL NOT cover the circle.
 
 #### Scenario: Circle stays in place when the summary appears
 - **WHEN** the user presses Done or Reset
