@@ -530,17 +530,13 @@ button,
 }
 
 /* Breathe in sits on its own row above the preset controls. The row is laid
-   out whenever Breath Retention is selected and the button only turns visible
-   in the hold, so the circle never jumps on Start, on Done, or when the hold
-   starts or ends. The other presets get no row at all. */
+   out for every pattern and the button only turns visible in the Breath
+   Retention hold, so the circle never jumps on Start, on Done, when the hold
+   starts or ends, or when the pattern changes. */
 .breathe-in-row {
-  display: none;
+  display: flex;
   flex-basis: 100%;
   justify-content: center;
-}
-
-.app[data-preset='breath-retention'] .breathe-in-row {
-  display: flex;
 }
 
 #breathe-in {

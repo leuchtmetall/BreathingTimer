@@ -553,16 +553,16 @@ describe('Breath Retention controls', () => {
     expect(text('#countdown')).toBe('1/20');
   });
 
-  it('puts Breathe in on its own row above the preset controls, laid out only during a session', async () => {
+  it('puts Breathe in on its own row above the preset controls, laid out for every pattern', async () => {
     await load();
     const row = $('#breathe-in').parentElement!;
     expect(row.classList.contains('breathe-in-row')).toBe(true);
     expect(row.parentElement).toBe($('.controls'));
     expect(row.parentElement!.firstElementChild).toBe(row);
     expect(row.contains($('#reset'))).toBe(false);
-    // Hidden by default; laid out whenever Breath Retention is selected, idle too.
-    expect(css).toMatch(/\.breathe-in-row \{\s*display: none;\s*flex-basis: 100%;/);
-    expect(css).toMatch(/\.app\[data-preset='breath-retention'\]\s+\.breathe-in-row \{\s*display: flex;/);
+    // Always laid out, so changing the pattern never moves the circle.
+    expect(css).toMatch(/\.breathe-in-row \{\s*display: flex;\s*flex-basis: 100%;/);
+    expect(css).not.toMatch(/\.breathe-in-row \{\s*display: none;/);
     // Within the row, the button keeps its space while hidden outside the hold.
     expect(css).toMatch(/#breathe-in \{\s*visibility: hidden;/);
     expect(css).not.toMatch(/#breathe-in \{\s*display:/);

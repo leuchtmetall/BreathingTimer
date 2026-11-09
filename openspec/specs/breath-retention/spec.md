@@ -33,7 +33,7 @@ The hold with empty lungs SHALL have no time limit and SHALL end only when the u
 - **THEN** the Breathe in control is not visible
 
 ### Requirement: Breathe in placement
-The Breathe in control SHALL be shown centered on its own row above the preset controls (Breathing pattern, Tempo, Breaths), apart from the Reset control. While Breath Retention is selected, in every session state, this row SHALL keep its space when Breathe in is hidden, so the circle and the other controls do not move when a session starts or ends, or when the hold starts or ends. When another pattern is selected, the row SHALL take no space.
+The Breathe in control SHALL be shown centered on its own row above the preset controls (Breathing pattern, Tempo, Breaths), apart from the Reset control. For every pattern and in every session state, this row SHALL keep its space when Breathe in is hidden, so the circle and the other controls do not move when a session starts or ends, when the hold starts or ends, or when the selected pattern changes.
 
 #### Scenario: Above the preset controls
 - **WHEN** the hold is running
@@ -47,9 +47,9 @@ The Breathe in control SHALL be shown centered on its own row above the preset c
 - **WHEN** the user starts a Breath Retention session, and later ends it with Reset or Done
 - **THEN** the circle and the preset controls keep their size and position
 
-#### Scenario: No space when idle or for other presets
-- **WHEN** Balanced Breathing, Box Breathing, or 4-6-7 Breathing is selected, whether the session is idle or running
-- **THEN** the controls take the same space as without a Breathe in row
+#### Scenario: No layout jump on pattern change
+- **WHEN** the user switches between Breath Retention and Balanced Breathing, Box Breathing, or 4-6-7 Breathing
+- **THEN** the circle keeps its size and position
 
 ### Requirement: Breathing speed follows the tempo
 For Breath Retention, the selected tempo SHALL set the length of one full breath to 3.5 seconds multiplied by the tempo's second length, with the breath in and the breath out each lasting half of it. The recovery breath in and breath out SHALL use the same lengths. The 15-second recovery hold SHALL NOT be scaled by the tempo.
