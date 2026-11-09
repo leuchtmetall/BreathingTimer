@@ -300,14 +300,131 @@ describe('Arrow-key pattern stepping', () => {
     expect(pattern()).toBe('balanced');
   });
 
-  it('ignores Up and Down Arrow and keys already handled', async () => {
+  it('does not step the pattern with Up or Down Arrow', async () => {
     await load();
-    expect(press('ArrowUp')).toBe(false);
-    expect(press('ArrowDown')).toBe(false);
+    press('ArrowUp');
+    press('ArrowDown');
+    expect(pattern()).toBe('balanced');
+  });
+
+  it('ignores keys already handled', async () => {
+    await load();
     const handled = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true, cancelable: true });
     handled.preventDefault();
     document.body.dispatchEvent(handled);
     expect(pattern()).toBe('balanced');
+  });
+});
+
+describe('Arrow-key tempo and breaths stepping', () => {
+  const value = (id: string) => $<HTMLSelectElement>(`#${id}`).value;
+  const press = (key: string, init: KeyboardEventInit = {}, target: Element = document.body) => {
+    const event = new KeyboardEvent('keydown', { key, bubbles: true, cancelable: true, ...init });
+    target.dispatchEvent(event);
+    return event.defaultPrevented;
+  };
+  /** Breath Retention at `tempo` with `breaths`, as if chosen from the lists. */
+  const retention = async (tempo: string, breaths: string) => {
+    await load();
+    choose('preset-select', 'breath-retention');
+    choose('tempo-select', tempo);
+    choose('breaths-select', breaths);
+  };
+  const settings = () => [value('tempo-select'), value('breaths-select')];
+
+  it('steps the tempo up and down the list on Balanced Breathing', async () => {
+    await load();
+    expect(press('ArrowUp')).toBe(true);
+    expect(value('tempo-select')).toBe('6');
+    press('ArrowDown');
+    press('ArrowDown');
+    expect(value('tempo-select')).toBe('5');
+  });
+
+  it('steps the 4-6-7 tempo from Normal down to Slow and up to Fast', async () => {
+    await load();
+    choose('preset-select', '467');
+    press('ArrowDown');
+    expect(value('tempo-select')).toBe('slow');
+    press('ArrowUp');
+    press('ArrowUp');
+    expect(value('tempo-select')).toBe('fast');
+  });
+
+  it('does not wrap at the ends of the tempo list, but still takes the key', async () => {
+    await load();
+    choose('preset-select', 'box');
+    choose('tempo-select', '8');
+    expect(press('ArrowUp')).toBe(true);
+    expect(value('tempo-select')).toBe('8');
+    choose('tempo-select', '3');
+    expect(press('ArrowDown')).toBe(true);
+    expect(value('tempo-select')).toBe('3');
+  });
+
+  it('runs the next session at the stepped tempo, remembers it, and writes it to the URL', async () => {
+    await load();
+    choose('preset-select', 'box');
+    press('ArrowUp');
+    expect(location.search).toBe('?pattern=box&tempo=7');
+    choose('preset-select', 'balanced');
+    choose('preset-select', 'box');
+    expect(value('tempo-select')).toBe('7');
+    click('start');
+    at(6_900);
+    expect(text('#phase-label')).toBe('Breathe in');
+    at(7_100);
+    expect(text('#phase-label')).not.toBe('Breathe in');
+  });
+
+  it('steps the breath count on Breath Retention, keeping the tempo', async () => {
+    await retention('normal', '30');
+    expect(press('ArrowUp')).toBe(true);
+    expect(settings()).toEqual(['normal', '35']);
+    press('ArrowDown');
+    press('ArrowDown');
+    expect(settings()).toEqual(['normal', '25']);
+    expect(location.search).toBe('?pattern=breath-retention&tempo=normal&breaths=25');
+  });
+
+  it('wraps the breath count into the next faster or slower tempo', async () => {
+    await retention('normal', '40');
+    press('ArrowUp');
+    expect(settings()).toEqual(['fast', '20']);
+    await retention('normal', '20');
+    press('ArrowDown');
+    expect(settings()).toEqual(['slow', '40']);
+  });
+
+  it('changes nothing when both the breath count and tempo are at the end', async () => {
+    await retention('fast', '40');
+    expect(press('ArrowUp')).toBe(true);
+    expect(settings()).toEqual(['fast', '40']);
+    await retention('slow', '20');
+    expect(press('ArrowDown')).toBe(true);
+    expect(settings()).toEqual(['slow', '20']);
+  });
+
+  it('is unavailable during a session and leaves the key to the page', async () => {
+    await retention('normal', '30');
+    click('start');
+    expect(press('ArrowUp')).toBe(false);
+    expect(press('ArrowDown')).toBe(false);
+    expect(settings()).toEqual(['normal', '30']);
+    click('reset');
+    press('ArrowUp');
+    expect(settings()).toEqual(['normal', '35']);
+  });
+
+  it('leaves modified keys and form fields alone', async () => {
+    await load();
+    for (const modifier of ['altKey', 'ctrlKey', 'metaKey', 'shiftKey']) {
+      expect(press('ArrowUp', { [modifier]: true })).toBe(false);
+    }
+    for (const id of ['preset-select', 'tempo-select', 'breaths-select']) {
+      expect(press('ArrowDown', {}, $(`#${id}`))).toBe(false);
+    }
+    expect(value('tempo-select')).toBe('5.5');
   });
 });
 

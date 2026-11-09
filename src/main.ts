@@ -3,7 +3,14 @@ import { DEBUG } from './debug';
 import { DebugMenu } from './debug-menu';
 import { BreathingEngine } from './engine';
 import { FaviconController } from './favicon';
-import { breathCountChoices, defaultBreathCount, presetChoices, type PresetChoice, type TempoChoice } from './presets';
+import {
+  BREATH_RETENTION_ID,
+  breathCountChoices,
+  defaultBreathCount,
+  presetChoices,
+  type PresetChoice,
+  type TempoChoice,
+} from './presets';
 import { arcColor, Renderer, type RenderTargets } from './renderer';
 import { SoundScheduler } from './sound';
 import { NIGHT_QUERY, ThemeController } from './theme';
@@ -178,42 +185,77 @@ const presetNext = button('preset-next');
 presetPrev.addEventListener('click', () => stepPreset(-1));
 presetNext.addEventListener('click', () => stepPreset(1));
 
-// Left/Right Arrow work exactly when the stepping buttons do. Modified keys
-// stay with the browser, and form fields keep their own arrow keys.
+/**
+ * Moves `offset` places up (−1) or down (+1) the tempo list, stopping at its
+ * ends. On Breath Retention the breaths list moves instead; past one of its
+ * ends it wraps and the tempo moves one place, unless the tempo is at its end too.
+ */
+function stepSettings(offset: number): void {
+  const tempos = selectedPreset.tempos;
+  let tempoIndex = tempos.indexOf(selectedTempo);
+  let breathsIndex = breathCountChoices.indexOf(selectedBreaths);
+  if (selectedPreset.id === BREATH_RETENTION_ID) {
+    breathsIndex += offset;
+    if (breathsIndex < 0 || breathsIndex >= breathCountChoices.length) {
+      tempoIndex += offset;
+      breathsIndex = offset < 0 ? breathCountChoices.length - 1 : 0;
+    }
+  } else {
+    tempoIndex += offset;
+  }
+  if (tempoIndex < 0 || tempoIndex >= tempos.length) return;
+  selectSettings({ tempoId: tempos[tempoIndex]!.id, breaths: breathCountChoices[breathsIndex] });
+}
+
+// Left/Right Arrow work exactly when the pattern stepping buttons do, Up/Down
+// exactly when the tempo list does. Modified keys stay with the browser, and
+// form fields keep their own arrow keys.
 document.addEventListener('keydown', (event) => {
   if (event.defaultPrevented || event.altKey || event.ctrlKey || event.metaKey || event.shiftKey) return;
   const target = event.target;
   if (target instanceof HTMLElement && (target.matches('input, select, textarea') || target.isContentEditable)) return;
+  if (event.key === 'ArrowUp' || event.key === 'ArrowDown') {
+    if (tempoSelector.disabled) return;
+    // Taken even at a limit, so a held key never starts scrolling the page.
+    event.preventDefault();
+    stepSettings(event.key === 'ArrowUp' ? -1 : 1);
+    return;
+  }
   const step = event.key === 'ArrowLeft' ? presetPrev : event.key === 'ArrowRight' ? presetNext : null;
   if (!step || step.disabled) return;
   event.preventDefault();
   stepPreset(step === presetPrev ? -1 : 1);
 });
 
-breathsSelector.addEventListener('change', () => {
-  const breaths = Number(breathsSelector.value);
-  if (engine.state !== 'idle' || !breathCountChoices.includes(breaths)) {
+/**
+ * The tempo and breaths lists and Up/Down Arrow all land here; either setting
+ * may be left out. Nothing changes outside idle or for an unknown value.
+ */
+function selectSettings({
+  tempoId = selectedTempo.id,
+  breaths = selectedBreaths,
+}: {
+  tempoId?: string;
+  breaths?: number;
+}): void {
+  const tempo = selectedPreset.tempos.find(({ id }) => id === tempoId);
+  if (engine.state !== 'idle' || !tempo || !breathCountChoices.includes(breaths)) {
+    tempoSelector.value = selectedTempo.id;
     breathsSelector.value = String(selectedBreaths);
     return;
   }
+  selectedTempo = tempo;
+  selectedTempoIds.set(selectedPreset.id, tempo.id);
   selectedBreaths = breaths;
+  tempoSelector.value = tempo.id;
+  breathsSelector.value = String(breaths);
   engine = createEngine();
   sync();
   writeUrl();
-});
+}
 
-tempoSelector.addEventListener('change', () => {
-  const choice = selectedPreset.tempos.find(({ id }) => id === tempoSelector.value);
-  if (engine.state !== 'idle' || !choice) {
-    tempoSelector.value = selectedTempo.id;
-    return;
-  }
-  selectedTempo = choice;
-  selectedTempoIds.set(selectedPreset.id, choice.id);
-  engine = createEngine();
-  sync();
-  writeUrl();
-});
+breathsSelector.addEventListener('change', () => selectSettings({ breaths: Number(breathsSelector.value) }));
+tempoSelector.addEventListener('change', () => selectSettings({ tempoId: tempoSelector.value }));
 
 const resetButton = button('reset');
 
