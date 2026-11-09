@@ -298,13 +298,13 @@ describe('Box Breathing presets', () => {
   it('offers 3 to 8 seconds per phase as its tempo, defaulting to 5', () => {
     const box = choice('box');
     expect(box.tempos.map(({ id, label }) => [id, label])).toEqual([
-      ['3', '3 s per phase'],
-      ['4', '4 s per phase'],
-      ['5', '5 s per phase'],
-      ['7', '7 s per phase'],
       ['8', '8 s per phase'],
+      ['7', '7 s per phase'],
+      ['5', '5 s per phase'],
+      ['4', '4 s per phase'],
+      ['3', '3 s per phase'],
     ]);
-    expect(boxPhaseChoices).toEqual([3, 4, 5, 7, 8]);
+    expect(boxPhaseChoices).toEqual([8, 7, 5, 4, 3]);
     expect(box.defaultTempoId).toBe(String(defaultBoxPhase));
     expect(defaultBoxPhase).toBe(5);
   });
@@ -325,13 +325,13 @@ describe('Balanced Breathing presets', () => {
   it('offers 4 to 7 seconds per phase as its tempo, defaulting to 5.5', () => {
     const balanced = choice('balanced');
     expect(balanced.tempos.map(({ id, label }) => [id, label])).toEqual([
-      ['4', '4 s per phase'],
-      ['5', '5 s per phase'],
-      ['5.5', '5.5 s per phase'],
-      ['6', '6 s per phase'],
       ['7', '7 s per phase'],
+      ['6', '6 s per phase'],
+      ['5.5', '5.5 s per phase'],
+      ['5', '5 s per phase'],
+      ['4', '4 s per phase'],
     ]);
-    expect(balancedPhaseChoices).toEqual([4, 5, 5.5, 6, 7]);
+    expect(balancedPhaseChoices).toEqual([7, 6, 5.5, 5, 4]);
     expect(balanced.defaultTempoId).toBe(String(defaultBalancedPhase));
     expect(defaultBalancedPhase).toBe(5.5);
   });
@@ -361,11 +361,11 @@ describe('Balanced Breathing presets', () => {
 describe('Tempo', () => {
   const durations = (preset: Preset) => preset.phases.map(({ seconds }) => seconds);
 
-  it('offers Slow, Normal, and Fast with Normal as the one-second default', () => {
+  it('offers Fast, Normal, and Slow with Normal as the one-second default', () => {
     expect(tempoChoices.map(({ label, secondLength }) => [label, secondLength])).toEqual([
-      ['Slow (1.25 s per count)', 1.25],
-      ['Normal (1 s per count)', 1],
       ['Fast (0.8 s per count)', 0.8],
+      ['Normal (1 s per count)', 1],
+      ['Slow (1.25 s per count)', 1.25],
     ]);
     expect(defaultTempo).toBe(tempoNormal);
     expect(defaultTempo.secondLength).toBe(1);
@@ -377,9 +377,9 @@ describe('Tempo', () => {
     expect(durations(applyTempo(preset467, tempoSlow))).toEqual([5, 7.5, 8.75]);
   });
 
-  it('offers Slow, Normal, and Fast for 4-6-7 and Breath Retention, defaulting to Normal', () => {
+  it('offers Fast, Normal, and Slow for 4-6-7 and Breath Retention, defaulting to Normal', () => {
     for (const id of ['467', 'breath-retention']) {
-      expect(choice(id).tempos.map(({ id }) => id)).toEqual(['slow', 'normal', 'fast']);
+      expect(choice(id).tempos.map(({ id }) => id)).toEqual(['fast', 'normal', 'slow']);
       expect(choice(id).defaultTempoId).toBe('normal');
     }
     expect(choice('467').tempos.map(({ label }) => label)).toEqual(tempoChoices.map(({ label }) => label));
@@ -555,8 +555,8 @@ describe('Breath Retention preset', () => {
     expect(hasRetention(preset467)).toBe(false);
   });
 
-  it('offers 20 to 40 breaths in steps of 5, defaulting to 30', () => {
-    expect(breathCountChoices).toEqual([20, 25, 30, 35, 40]);
+  it('offers 40 to 20 breaths in steps of 5, defaulting to 30', () => {
+    expect(breathCountChoices).toEqual([40, 35, 30, 25, 20]);
     expect(defaultBreathCount).toBe(30);
     const normal = choice('breath-retention').tempos.find(({ id }) => id === 'normal')!;
     expect(normal.build(defaultBreathCount).phases.filter(({ role }) => role === 'breath')).toHaveLength(60);
@@ -571,9 +571,9 @@ describe('Breath Retention preset', () => {
   });
 
   it('labels tempos without the count length for Breath Retention only', () => {
-    expect(choice('breath-retention').tempos.map(({ label }) => label)).toEqual(['Slow', 'Normal', 'Fast']);
-    expect(choice('467').tempos[0]!.label).toBe('Slow (1.25 s per count)');
-    const slow = choice('breath-retention').tempos[0]!.build(30);
+    expect(choice('breath-retention').tempos.map(({ label }) => label)).toEqual(['Fast', 'Normal', 'Slow']);
+    expect(choice('467').tempos[2]!.label).toBe('Slow (1.25 s per count)');
+    const slow = choice('breath-retention').tempos[2]!.build(30);
     expect(fullBreath(slow)).toBeCloseTo(4.375, 10);
   });
 });

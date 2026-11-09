@@ -147,9 +147,9 @@ describe('Pattern stepping buttons', () => {
     click('preset-prev');
     expect(pattern()).toBe('breath-retention');
     expect(Array.from($<HTMLSelectElement>('#tempo-select').options, (o) => o.textContent)).toEqual([
-      'Slow',
-      'Normal',
       'Fast',
+      'Normal',
+      'Slow',
     ]);
     click('preset-prev');
     expect(pattern()).toBe('467');
@@ -319,11 +319,11 @@ describe('Tempo follows the pattern', () => {
     await load();
     expect($<HTMLSelectElement>('#preset-select').value).toBe('balanced');
     expect(tempos()).toEqual([
-      ['4', '4 s per phase'],
-      ['5', '5 s per phase'],
-      ['5.5', '5.5 s per phase'],
-      ['6', '6 s per phase'],
       ['7', '7 s per phase'],
+      ['6', '6 s per phase'],
+      ['5.5', '5.5 s per phase'],
+      ['5', '5 s per phase'],
+      ['4', '4 s per phase'],
     ]);
     expect(tempo()).toBe('5.5');
   });
@@ -343,11 +343,11 @@ describe('Tempo follows the pattern', () => {
     await load();
     choose('preset-select', 'box');
     expect(tempos()).toEqual([
-      ['3', '3 s per phase'],
-      ['4', '4 s per phase'],
-      ['5', '5 s per phase'],
-      ['7', '7 s per phase'],
       ['8', '8 s per phase'],
+      ['7', '7 s per phase'],
+      ['5', '5 s per phase'],
+      ['4', '4 s per phase'],
+      ['3', '3 s per phase'],
     ]);
     expect(tempo()).toBe('5');
     expect(text('label[for="tempo-select"] span')).toBe('Tempo');
@@ -375,7 +375,7 @@ describe('Tempo follows the pattern', () => {
     expect(tempo()).toBe('normal');
     choose('preset-select', '467');
     expect(tempo()).toBe('fast');
-    expect(tempos()[2]).toEqual(['fast', 'Fast (0.8 s per count)']);
+    expect(tempos()[0]).toEqual(['fast', 'Fast (0.8 s per count)']);
     choose('preset-select', 'box');
     expect(tempo()).toBe('7');
   });
@@ -409,22 +409,22 @@ describe('Breath Retention controls', () => {
     expect($('#breaths-select').closest('.breath-retention-only')).not.toBeNull();
     expect($('#breaths-select').closest('.controls')).not.toBeNull();
     expect(document.querySelector('#hold-sound-select')).toBeNull();
-    expect(tempoLabels()).toEqual(['Slow (1.25 s per count)', 'Normal (1 s per count)', 'Fast (0.8 s per count)']);
+    expect(tempoLabels()).toEqual(['Fast (0.8 s per count)', 'Normal (1 s per count)', 'Slow (1.25 s per count)']);
 
     choose('preset-select', 'breath-retention');
     expect(app().dataset.preset).toBe('breath-retention');
     expect(Array.from($<HTMLSelectElement>('#breaths-select').options, (o) => o.value)).toEqual([
-      '20',
-      '25',
-      '30',
-      '35',
       '40',
+      '35',
+      '30',
+      '25',
+      '20',
     ]);
     expect($<HTMLSelectElement>('#breaths-select').value).toBe('30');
-    expect(tempoLabels()).toEqual(['Slow', 'Normal', 'Fast']);
+    expect(tempoLabels()).toEqual(['Fast', 'Normal', 'Slow']);
 
     choose('preset-select', '467');
-    expect(tempoLabels()[0]).toBe('Slow (1.25 s per count)');
+    expect(tempoLabels()[0]).toBe('Fast (0.8 s per count)');
   });
 
   it('locks the breath count during a session', async () => {

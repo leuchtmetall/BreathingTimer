@@ -68,8 +68,8 @@ export function balancedPreset(seconds: number): Preset {
   };
 }
 
-/** Balanced Breathing phase lengths in seconds, offered by the tempo control. */
-export const balancedPhaseChoices: readonly number[] = [4, 5, 5.5, 6, 7];
+/** Balanced Breathing phase lengths in seconds, longest first, as the tempo control lists them. */
+export const balancedPhaseChoices: readonly number[] = [7, 6, 5.5, 5, 4];
 export const defaultBalancedPhase = 5.5;
 
 /** Box Breathing at one count per real second: inhale, hold, exhale, hold. */
@@ -87,13 +87,13 @@ export function boxPreset(counts: number): Preset {
   };
 }
 
-/** Box Breathing phase lengths in seconds, offered by the tempo control. */
-export const boxPhaseChoices: readonly number[] = [3, 4, 5, 7, 8];
+/** Box Breathing phase lengths in seconds, longest first, as the tempo control lists them. */
+export const boxPhaseChoices: readonly number[] = [8, 7, 5, 4, 3];
 export const defaultBoxPhase = 5;
 
 /** One full breath (in and out) of Breath Retention at Normal tempo, in counts. */
 export const BREATH_COUNTS = 3.5;
-export const breathCountChoices: readonly number[] = [20, 25, 30, 35, 40];
+export const breathCountChoices: readonly number[] = [40, 35, 30, 25, 20];
 export const defaultBreathCount = 30;
 
 /**
@@ -146,8 +146,8 @@ export const tempoSlow = tempo('slow', 'Slow', 1.25);
 export const tempoNormal = tempo('normal', 'Normal', 1);
 export const tempoFast = tempo('fast', 'Fast', 0.8);
 
-/** Ordered Slow/Normal/Fast catalog, slowest first; Normal is the default. */
-export const tempoChoices: readonly Tempo[] = [tempoSlow, tempoNormal, tempoFast];
+/** Ordered Fast/Normal/Slow catalog, fastest first; Normal is the default. */
+export const tempoChoices: readonly Tempo[] = [tempoFast, tempoNormal, tempoSlow];
 export const defaultTempo = tempoNormal;
 
 /** Resolves a counts-authored preset into real seconds at the given tempo. */
